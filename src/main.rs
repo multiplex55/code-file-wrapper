@@ -55,8 +55,11 @@ fn main() {
             std::process::exit(1);
         }
 
+        // Get mouse cursor position for initial window placement
+        let cursor_position = get_cursor_position();
+
         // Launch the mode selection GUI
-        let selected_mode = mode_selection_gui(modes.keys().cloned().collect());
+        let selected_mode = mode_selection_gui(modes.keys().cloned().collect(), cursor_position);
         let Some(valid_exts) = selected_mode.and_then(|mode| modes.get(mode.as_str())) else {
             eprintln!("No mode selected. Exiting.");
             std::process::exit(0);
@@ -80,19 +83,25 @@ fn main() {
 }
 
 /// Launches the mode selection GUI and returns the selected mode.
-fn mode_selection_gui(modes: Vec<&str>) -> Option<String> {
+fn mode_selection_gui(modes: Vec<&str>, initial_pos: Option<(f32, f32)>) -> Option<String> {
     let mut selected_mode: Option<String> = None;
 
     let app = ModeSelector::new(modes, &mut selected_mode);
 
+    // Set the initial position of the GUI window
+    let mut native_options = eframe::NativeOptions::default();
+
+    if let Some((x, y)) = initial_pos {
+        native_options.viewport = native_options
+            .viewport
+            .with_position(egui::pos2(x, y))
+            .with_inner_size([400.0, 300.0])
+            .with_min_inner_size([300.0, 200.0]);
+    }
+
     let _ = eframe::run_native(
         "Select Processing Mode",
-        eframe::NativeOptions {
-            viewport: egui::ViewportBuilder::default()
-                .with_inner_size([400.0, 300.0])
-                .with_min_inner_size([300.0, 200.0]),
-            ..Default::default()
-        },
+        native_options,
         Box::new(|_cc| Ok(Box::new(app))),
     );
 
@@ -137,4 +146,18 @@ impl eframe::App for ModeSelector<'_> {
                 });
         });
     }
+}
+
+/// Retrieves the current mouse cursor position as `(x, y)` coordinates.
+fn get_cursor_position() -> Option<(f32, f32)> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+
+    let mut point = POINT { x: 0, y: 0 };
+    unsafe {
+        if GetCursorPos(&mut point).is_ok() {
+            return Some((point.x as f32, point.y as f32));
+        }
+    }
+    None
 }

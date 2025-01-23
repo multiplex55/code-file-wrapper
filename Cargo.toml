@@ -8,3 +8,8 @@ edition = "2021"
 clap = { version = "4.5.23", features = ["derive"] }
 rfd = "0.15.2"
 eframe = "0.30.0"
+winit = "0.29.8"
+windows = { version = "0.59.0", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
