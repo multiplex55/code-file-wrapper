@@ -7,3 +7,4 @@ edition = "2021"
 # IMPORTANT: Enable the "derive" feature to access Clap's derive macros.
 clap = { version = "4.5.23", features = ["derive"] }
 rfd = "0.15.2"
+eframe = "0.30.0"

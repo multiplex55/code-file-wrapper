@@ -6,17 +6,25 @@
 
 use std::fs::{read_dir, File};
 use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Writes each file in the folder into an output file with tags.
-/// Only includes files with extensions typically opened in text editors.
-pub fn write_folder_tags(dir: &Path) -> std::io::Result<()> {
-    let valid_exts = ["ini", "txt", "rs", "cs", "json", "xml"];
+/// Only includes files with extensions specified by `valid_exts`.
+///
+/// # Parameters
+///
+/// * `dir` - The directory to process.
+/// * `valid_exts` - A list of valid file extensions to filter files by.
+///
+/// # Errors
+///
+/// Returns an `std::io::Result` in case of any file or IO errors.
+pub fn write_folder_tags(dir: &Path, valid_exts: &[&str]) -> std::io::Result<()> {
     let mut output = File::create("tags_output.txt")?;
     for entry in read_dir(dir)? {
         let entry = entry?;
         let path = entry.path();
-        if path.is_file() && is_human_readable(&path, &valid_exts) {
+        if path.is_file() && is_human_readable(&path, valid_exts) {
             if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
                 let mut contents = String::new();
                 File::open(&path)?.read_to_string(&mut contents)?;
@@ -39,7 +47,7 @@ pub fn write_folder_tags(dir: &Path) -> std::io::Result<()> {
 /// # Returns
 ///
 /// * `bool` indicating whether the file is considered human-readable.
-fn is_human_readable(path: &PathBuf, valid_exts: &[&str]) -> bool {
+fn is_human_readable(path: &Path, valid_exts: &[&str]) -> bool {
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
         return valid_exts.contains(&ext);
     }
