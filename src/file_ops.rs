@@ -34,6 +34,9 @@ pub fn write_folder_tags(dir: &Path, valid_exts: &[&str]) -> std::io::Result<()>
             }
         }
     }
+    writeln!(output, "* The above is the current state of my project with each \"<>\" block containing the file it belongs to")?;
+    writeln!(output, "* Provide context above and below code changes with clear temp comments to indicate change")?;
+    writeln!(output, "* Be extremely explicit with where to make changes")?;
     Ok(())
 }
 
