@@ -75,7 +75,12 @@ fn main() {
     };
 
     // Default behavior if path is provided
-    if let Err(e) = write_folder_tags(&folder, &["ini", "txt", "rs", "cs", "json", "xml", "ahk"]) {
+    if let Err(e) = write_folder_tags(
+        &folder,
+        &[
+            "ini", "txt", "rs", "cs", "json", "xml", "ahk", "c", "cpp", "h",
+        ],
+    ) {
         eprintln!("Error creating tags: {e}");
         std::process::exit(1);
     }
