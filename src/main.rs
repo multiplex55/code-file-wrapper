@@ -27,7 +27,7 @@ fn main() {
         ("Rust", vec!["rs"]),
         ("JSON", vec!["json"]),
         ("XML", vec!["xml"]),
-        // Add more modes here
+        ("C/CPP", vec!["c", "cpp", "h"]),
     ]);
 
     // Parse command-line arguments
