@@ -1,5 +1,8 @@
+Here is the updated **README** with the `clipboard-win` change reflected:
 
-<h1 align="center">Code File Wrapper</h1>
+---
+
+# 🗂️ **Code File Wrapper**  
 
 <p align="center">
   <b>Wrap your code files inside XML-style tags effortlessly! 🚀</b> <br>
@@ -15,7 +18,13 @@
 
 ---
 
-## ✨ Features
+## 📌 Version  
+- **Latest Release:** `0.2.0`
+- **Author:** `Multiplex55`
+
+---
+
+## ✨ Features  
 ✅ **Wraps files inside XML-like tags**  
 ✅ **Supports multiple languages** (`.rs`, `.json`, `.xml`, `.c`, `.cpp`, `.ahk`, etc.)  
 ✅ **GUI Mode & CLI Mode** 🎨📜  
@@ -23,16 +32,16 @@
 ✅ **Multi-line Notes Section** 📝  
 ✅ **Error Handling & Debugging Messages** ⚠️  
 ✅ **Lightweight & Blazing Fast** ⚡  
-✅ **Useful for providing context to AIs or documentation** 🤖
+✅ **Useful for providing context to AIs or documentation** 🤖  
 
 ---
 
-## 📥 Installation
+## 📥 Installation  
 
-**Prerequisites:**  
+### **Prerequisites:**  
 - 🦀 [Rust Installed](https://www.rust-lang.org/tools/install)  
 
-Clone the repo and build:  
+### **Build From Source:**  
 
 ```sh
 git clone https://github.com/your-username/code-file-wrapper.git
@@ -42,18 +51,29 @@ cargo build --release
 
 ---
 
+## 📦 Dependencies  
+| Name             | Version | Description                                | Link |
+|----------------|---------|--------------------------------|------|
+| `clap`        | `4.5.23` | Command-line argument parsing | [📦 Crates.io](https://crates.io/crates/clap) |
+| `clipboard-win` | `4.4.1` | Windows clipboard integration | [📦 Crates.io](https://crates.io/crates/clipboard-win) |
+| `eframe`      | `0.30.0` | GUI framework for Rust | [📦 Crates.io](https://crates.io/crates/eframe) |
+| `rfd`         | `0.15.2` | File dialog UI helper | [📦 Crates.io](https://crates.io/crates/rfd) |
+| `windows`     | `0.59.0` | Windows API bindings | [📦 Crates.io](https://crates.io/crates/windows) |
+| `winit`       | `0.30.8` | Window handling library | [📦 Crates.io](https://crates.io/crates/winit) |
+
+---
+
 ## 🚀 Usage  
 
 ### **CLI Mode**  
-
-To run **CLI mode**, provide a folder path:  
+Run the program with a folder path:
 
 ```sh
 ./code-file-wrapper /path/to/directory
 ```
 
 ### **GUI Mode**  
-To launch the interactive **GUI mode**, just run:
+To launch the interactive GUI mode:
 
 ```sh
 ./code-file-wrapper
@@ -84,8 +104,9 @@ graph TD;
 ```
 
 ---
-## ➡️ Output
-**Final Output Example (`tags_output.txt`):**  
+
+## ➡️ Output Example  
+**Generated `tags_output.txt` file:**  
 ```
 <main.rs>
 fn main() {
@@ -118,4 +139,5 @@ To contribute:
 
 ## 🌟 Show Some Love!  
 
-If you like this project, **drop a ⭐ on GitHub!**  
+If you like this project, **drop a ⭐ on GitHub!** 🚀  
+

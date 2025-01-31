@@ -9,11 +9,12 @@ mod file_ops;
 use crate::cli::CliArgs;
 use crate::file_ops::write_folder_tags;
 use clap::Parser;
-use clipboard::{ClipboardContext, ClipboardProvider};
+use clipboard_win::{formats, Clipboard, Setter};
 use eframe::egui;
 use rfd::FileDialog;
 use std::collections::HashMap;
 use std::fs::{read_to_string, OpenOptions};
+use std::io;
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -209,7 +210,7 @@ fn append_additional_commands(file_path: &str, additional_commands: &str) -> std
 ///
 /// # Functionality
 /// - Reads the contents of `tags_output.txt`.
-/// - Copies the contents to the clipboard using the `clipboard` crate.
+/// - Copies the contents to the clipboard using the `clipboard-win` crate.
 ///
 /// # Parameters
 /// - `file_path: &str` → The path to the output file (`tags_output.txt`).
@@ -236,17 +237,18 @@ fn append_additional_commands(file_path: &str, additional_commands: &str) -> std
 ///     eprintln!("Error copying to clipboard: {}", e);
 /// }
 /// ```
-fn copy_to_clipboard(file_path: &str) -> std::io::Result<()> {
-    let mut ctx: ClipboardContext = ClipboardProvider::new()
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Clipboard access failed"))?;
-
+fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
     let file_contents = read_to_string(file_path)?;
-    ctx.set_contents(file_contents).map_err(|_| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to set clipboard contents",
-        )
-    })
+
+    // Open clipboard and set contents
+    let _clip = Clipboard::new_attempts(10)
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Clipboard access failed"))?;
+
+    formats::Unicode
+        .write_clipboard(&file_contents)
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to set clipboard contents"))?;
+
+    Ok(())
 }
 
 /// Launches the mode selection GUI and returns the user's choices.
