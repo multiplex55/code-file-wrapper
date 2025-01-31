@@ -4,6 +4,7 @@ use clipboard_win::{formats, Clipboard, Setter};
 use eframe::egui;
 use rfd::FileDialog;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs::{read_to_string, OpenOptions};
 use std::io;
 use std::io::Write;
@@ -116,7 +117,8 @@ struct ModeSelector<'a> {
     additional_commands: &'a mut String,
     selected_dir: &'a mut Option<PathBuf>,
     preset_texts: &'a mut Vec<String>,
-    warning_message: String, // New field to store the warning message
+    selected_presets: HashSet<String>, // Track selected presets
+    warning_message: String,
 }
 
 impl<'a> ModeSelector<'a> {
@@ -135,7 +137,8 @@ impl<'a> ModeSelector<'a> {
             additional_commands,
             selected_dir,
             preset_texts,
-            warning_message: String::new(), // Initialize empty warning
+            selected_presets: HashSet::new(), // Initialize empty set
+            warning_message: String::new(),
         }
     }
 }
@@ -182,7 +185,7 @@ impl eframe::App for ModeSelector<'_> {
                         .clicked()
                     {
                         *self.selected_mode = Some(mode.clone());
-                        self.warning_message.clear(); // Clear warning on selection
+                        self.warning_message.clear();
                     }
                 }
             });
@@ -202,35 +205,40 @@ impl eframe::App for ModeSelector<'_> {
                     .clip_text(false),
             );
 
-            // Preset Commands
+            // Preset Commands Selection
             ui.label("Preset Commands:");
             ui.horizontal_wrapped(|ui| {
                 let presets = vec![
-                    Preset {
-                        name: "Button 1",
-                        text: "Preset text for Button 1",
-                    },
-                    Preset {
-                        name: "Button 2",
-                        text: "Preset text for Button 2",
-                    },
-                    Preset {
-                        name: "Button 3",
-                        text: "Preset text for Button 3",
-                    },
-                    Preset {
-                        name: "Button 4",
-                        text: "Preset text for Button 4",
-                    },
-                    Preset {
-                        name: "Button 5",
-                        text: "Preset text for Button 5",
-                    },
+                    ("Button 1", "Preset text for Button 1"),
+                    ("Button 2", "Preset text for Button 2"),
+                    ("Button 3", "Preset text for Button 3"),
+                    ("Button 4", "Preset text for Button 4"),
+                    ("Button 5", "Preset text for Button 5"),
                 ];
 
-                for preset in &presets {
-                    if ui.button(preset.name).clicked() {
-                        self.preset_texts.push(preset.text.to_string());
+                for (name, text) in &presets {
+                    let is_selected = self.selected_presets.contains(*name);
+                    let default_bg = ui.visuals().widgets.inactive.bg_fill;
+                    let default_text = ui.visuals().widgets.inactive.fg_stroke.color;
+
+                    let (bg_color, text_color) = if is_selected {
+                        (egui::Color32::from_rgb(0, 120, 40), egui::Color32::WHITE)
+                    } else {
+                        (default_bg, default_text)
+                    };
+
+                    if ui
+                        .add(
+                            egui::Button::new(egui::RichText::new(*name).color(text_color))
+                                .fill(bg_color),
+                        )
+                        .clicked()
+                    {
+                        if is_selected {
+                            self.selected_presets.remove(*name);
+                        } else {
+                            self.selected_presets.insert(name.to_string());
+                        }
                     }
                 }
             });
@@ -251,6 +259,19 @@ impl eframe::App for ModeSelector<'_> {
                     self.warning_message =
                         "⚠️ Please select a file type before proceeding!".to_string();
                 } else {
+                    // Append selected presets when GUI closes
+                    for preset in &self.selected_presets {
+                        let preset_text = match preset.as_str() {
+                            "Button 1" => "Preset text for Button 1",
+                            "Button 2" => "Preset text for Button 2",
+                            "Button 3" => "Preset text for Button 3",
+                            "Button 4" => "Preset text for Button 4",
+                            "Button 5" => "Preset text for Button 5",
+                            _ => "",
+                        };
+                        self.preset_texts.push(preset_text.to_string());
+                    }
+
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             }
