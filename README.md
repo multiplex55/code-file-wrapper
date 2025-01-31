@@ -1,4 +1,3 @@
-
 <h1 align="center">Code File Wrapper</h1>
 
 <p align="center">
@@ -11,7 +10,13 @@
   <img alt="GitHub stars" src="https://img.shields.io/github/stars/multiplex55/code-file-wrapper?style=social">
   <img alt="GitHub license" src="https://img.shields.io/github/license/multiplex55/code-file-wrapper">
   <img alt="Rust Version" src="https://img.shields.io/badge/Rust-Edition%202021-orange">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-blue">
 </p>
+
+---
+
+## 🏆 Author  
+**Multiplex55**  
 
 ---
 
@@ -23,7 +28,20 @@
 ✅ **Multi-line Notes Section** 📝  
 ✅ **Error Handling & Debugging Messages** ⚠️  
 ✅ **Lightweight & Blazing Fast** ⚡  
-✅ **Useful for providing context to AIs or documentation** 🤖
+✅ **Useful for providing context to AIs or documentation** 🤖  
+
+---
+
+## 📦 Dependencies
+
+| Dependency  | Version  | Description  | Link  |
+|------------|---------|-------------|-------|
+| `clap` | `4.5.23` | Command-line argument parser with derive macros | [📌 Clap Crate](https://crates.io/crates/clap) |
+| `clipboard` | `0.5.0` | Clipboard API for copying text | [📌 Clipboard Crate](https://crates.io/crates/clipboard) |
+| `eframe` | `0.30.0` | GUI framework for Rust applications | [📌 eframe Crate](https://crates.io/crates/eframe) |
+| `rfd` | `0.15.2` | File picker dialog for GUI | [📌 rfd Crate](https://crates.io/crates/rfd) |
+| `windows` | `0.59.0` | Windows API bindings for Rust | [📌 Windows Crate](https://crates.io/crates/windows) |
+| `winit` | `0.30.8` | Window handling for GUI applications | [📌 Winit Crate](https://crates.io/crates/winit) |
 
 ---
 
@@ -35,7 +53,7 @@
 Clone the repo and build:  
 
 ```sh
-git clone https://github.com/your-username/code-file-wrapper.git
+git clone https://github.com/multiplex55/code-file-wrapper.git
 cd code-file-wrapper
 cargo build --release
 ```
