@@ -17,11 +17,53 @@ use std::fs::{read_to_string, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 
-/// Main entry point for `code-file-wrapper`.
+/// # Main Entry Point
 ///
-/// If a valid path is provided, that folder is immediately processed.
-/// Otherwise, a folder picker dialog is opened to allow folder selection,
-/// and a mode selection GUI is presented.
+/// The `main` function serves as the entry point for the `code-file-wrapper` program.
+/// It is responsible for processing command-line arguments, invoking the appropriate
+/// logic for file processing, and handling user interactions via the GUI if necessary.
+///
+/// ## Functionality
+/// - Parses command-line arguments to check if a folder path is provided.
+/// - If a path is provided, processes the files in the directory using `write_folder_tags`.
+/// - If no path is provided, launches a GUI to allow directory and mode selection.
+/// - Writes the tagged contents of files into `tags_output.txt`.
+/// - Appends any additional user-provided commands to `tags_output.txt`.
+/// - Optionally copies the contents of `tags_output.txt` to the clipboard.
+///
+/// ## Parameters
+/// - This function does not take any parameters directly, but it uses command-line
+///   arguments parsed through `CliArgs`.
+///
+/// ## Returns
+/// - This function does not return a value. The process terminates with `std::process::exit(0)`
+///   upon successful completion, or exits with an error code if an error occurs.
+///
+/// ## Error Handling
+/// - If the provided folder path does not exist, an error message is displayed and the program exits.
+/// - If `write_folder_tags` fails, an error is printed, and the program exits.
+/// - If `append_additional_commands` fails, an error is printed, but execution continues.
+/// - If clipboard copying fails, an error is printed, but execution continues.
+///
+/// ## Panics
+/// - The function does not explicitly panic, but it will exit if critical errors occur, such as
+///   failing to create or write to `tags_output.txt`.
+///
+/// ## Side Effects
+/// - Creates (or overwrites) `tags_output.txt`.
+/// - Writes the contents of selected files into `tags_output.txt`.
+/// - Modifies the system clipboard if clipboard copying is enabled.
+///
+/// ## Usage
+/// - Running the program with a folder path:
+///   ```sh
+///   code-file-wrapper /path/to/directory
+///   ```
+/// - Running the program without arguments (launches GUI):
+///   ```sh
+///   code-file-wrapper
+///   ```
+///
 fn main() {
     let modes: HashMap<&str, Vec<&str>> = HashMap::from([
         ("AHK", vec!["ahk"]),
@@ -100,7 +142,45 @@ fn main() {
     }
 }
 
-/// Appends additional commands to `tags_output.txt`. If empty, it still writes the section header.
+/// # Append Additional Commands to `tags_output.txt`
+///
+/// The `append_additional_commands` function appends user-specified text to the output file
+/// (`tags_output.txt`). If no additional commands are provided, it still ensures that a section
+/// header (`[Additional Commands]`) is included in the file.
+///
+/// ## Functionality
+/// - Opens `tags_output.txt` in **append mode** (creating it if it does not exist).
+/// - Writes a section header `[Additional Commands]`.
+/// - Appends the user-provided additional commands, or a default message if none are provided.
+///
+/// ## Parameters
+/// - `file_path: &str` → The path to the output file (`tags_output.txt`).
+/// - `additional_commands: &str` → The user-provided text to append to the file.
+///
+/// ## Returns
+/// - `std::io::Result<()>` → Returns `Ok(())` if the operation is successful, or an `Err` if
+///   any file operation fails.
+///
+/// ## Error Handling
+/// - If the file cannot be opened or created, an error is printed, and an `Err` is returned.
+/// - If writing to the file fails, an error is printed, and an `Err` is returned.
+///
+/// ## Panics
+/// - This function does not explicitly panic, but it will return an error if file operations fail.
+///
+/// ## Side Effects
+/// - Modifies `tags_output.txt` by appending user-specified commands.
+/// - Creates `tags_output.txt` if it does not exist.
+///
+/// ## Usage
+/// ```rust
+/// let file_path = "tags_output.txt";
+/// let additional_commands = "TODO: Implement new parsing logic.";
+/// if let Err(e) = append_additional_commands(file_path, additional_commands) {
+///     eprintln!("Error writing additional commands: {}", e);
+/// }
+/// ```
+///
 fn append_additional_commands(file_path: &str, additional_commands: &str) -> std::io::Result<()> {
     // Debug print statement to verify function execution
     println!("Appending additional commands to {}", file_path);
@@ -125,7 +205,37 @@ fn append_additional_commands(file_path: &str, additional_commands: &str) -> std
     Ok(())
 }
 
-/// Copies the contents of `tags_output.txt` to the clipboard.
+/// Copies the contents of `tags_output.txt` to the system clipboard.
+///
+/// # Functionality
+/// - Reads the contents of `tags_output.txt`.
+/// - Copies the contents to the clipboard using the `clipboard` crate.
+///
+/// # Parameters
+/// - `file_path: &str` → The path to the output file (`tags_output.txt`).
+///
+/// # Returns
+/// - `std::io::Result<()>` → Returns `Ok(())` if the clipboard operation succeeds, or an `Err`
+///   if reading the file or setting the clipboard fails.
+///
+/// # Error Handling
+/// - If reading `tags_output.txt` fails, an error is returned.
+/// - If setting the clipboard fails, an error is returned.
+///
+/// # Panics
+/// - This function does not explicitly panic but will return an error if:
+///   - The clipboard provider fails to initialize.
+///   - The clipboard contents cannot be set.
+///
+/// # Side Effects
+/// - Copies the contents of `tags_output.txt` to the system clipboard.
+///
+/// # Usage
+/// ```rust
+/// if let Err(e) = copy_to_clipboard("tags_output.txt") {
+///     eprintln!("Error copying to clipboard: {}", e);
+/// }
+/// ```
 fn copy_to_clipboard(file_path: &str) -> std::io::Result<()> {
     let mut ctx: ClipboardContext = ClipboardProvider::new()
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Clipboard access failed"))?;
@@ -139,7 +249,49 @@ fn copy_to_clipboard(file_path: &str) -> std::io::Result<()> {
     })
 }
 
-/// Launches the mode selection GUI and returns the selected mode.
+/// Launches the mode selection GUI and returns the user's choices.
+///
+/// # Functionality
+/// - Displays a graphical user interface (GUI) using `eframe` and `egui`.
+/// - Allows the user to select a processing mode from a list of available options.
+/// - Provides a checkbox to enable automatic clipboard saving.
+/// - Includes a multi-line text input area for additional commands.
+/// - Returns the selected mode, clipboard save preference, and additional commands input.
+///
+/// # Parameters
+/// - `modes: Vec<&str>` → A vector of available processing mode names.
+/// - `initial_pos: Option<(f32, f32)>` → An optional tuple specifying the initial window position.
+///
+/// # Returns
+/// - `(Option<String>, bool, String)`
+///   - `Option<String>` → The selected processing mode, or `None` if the user did not select one.
+///   - `bool` → `true` if the user enabled clipboard saving, `false` otherwise.
+///   - `String` → The user-provided additional commands.
+///
+/// # Error Handling
+/// - This function does not return errors directly. If the GUI fails to launch, the program will continue execution.
+///
+/// # Panics
+/// - This function does not explicitly panic but will exit if the `eframe::run_native` function fails.
+///
+/// # Side Effects
+/// - Opens a GUI window for user interaction.
+/// - The selected processing mode and user input are stored in mutable references.
+///
+/// # Usage
+/// ```rust
+/// let modes = vec!["Rust", "JSON", "XML"];
+/// let cursor_position = Some((100.0, 200.0));
+/// let (selected_mode, enable_clipboard, additional_commands) = mode_selection_gui(modes, cursor_position);
+///
+/// if let Some(mode) = selected_mode {
+///     println!("User selected mode: {}", mode);
+/// }
+/// if enable_clipboard {
+///     println!("Clipboard saving enabled.");
+/// }
+/// println!("Additional Commands: {}", additional_commands);
+/// ```
 fn mode_selection_gui(
     modes: Vec<&str>,
     initial_pos: Option<(f32, f32)>,
@@ -237,7 +389,37 @@ impl eframe::App for ModeSelector<'_> {
     }
 }
 
-/// Retrieves the current mouse cursor position as `(x, y)` coordinates.
+/// Retrieves the current mouse cursor position as a tuple `(x, y)`.
+///
+/// # Functionality
+/// - Uses the Windows API to obtain the current cursor position on the screen.
+/// - Returns the position as floating-point coordinates.
+///
+/// # Returns
+/// - `Option<(f32, f32)>`
+///   - `Some((x, y))` → If the cursor position is successfully retrieved.
+///   - `None` → If the cursor position cannot be obtained.
+///
+/// # Error Handling
+/// - This function does not return errors but will return `None` if the Windows API call fails.
+///
+/// # Panics
+/// - This function does not explicitly panic but relies on unsafe Rust code for the Windows API call.
+///
+/// # Side Effects
+/// - Calls the Windows API function `GetCursorPos`, which may fail in restricted environments.
+///
+/// # Platform-Specific Behavior
+/// - This function is only implemented for Windows. It will not compile on non-Windows platforms without modification.
+///
+/// # Usage
+/// ```rust
+/// if let Some((x, y)) = get_cursor_position() {
+///     println!("Cursor position: ({}, {})", x, y);
+/// } else {
+///     println!("Failed to retrieve cursor position.");
+/// }
+/// ```
 fn get_cursor_position() -> Option<(f32, f32)> {
     use windows::Win32::Foundation::POINT;
     use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
