@@ -44,7 +44,7 @@ Here is the updated **README** with the `clipboard-win` change reflected:
 ### **Build From Source:**  
 
 ```sh
-git clone https://github.com/your-username/code-file-wrapper.git
+git clone https://github.com/multiplex55/code-file-wrapper.git
 cd code-file-wrapper
 cargo build --release
 ```
