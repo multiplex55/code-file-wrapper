@@ -116,6 +116,7 @@ struct ModeSelector<'a> {
     additional_commands: &'a mut String,
     selected_dir: &'a mut Option<PathBuf>,
     preset_texts: &'a mut Vec<String>,
+    warning_message: String, // New field to store the warning message
 }
 
 impl<'a> ModeSelector<'a> {
@@ -134,6 +135,7 @@ impl<'a> ModeSelector<'a> {
             additional_commands,
             selected_dir,
             preset_texts,
+            warning_message: String::new(), // Initialize empty warning
         }
     }
 }
@@ -141,10 +143,12 @@ impl<'a> ModeSelector<'a> {
 impl eframe::App for ModeSelector<'_> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            // Directory Selection
             ui.horizontal(|ui| {
                 if ui.button("Select Directory").clicked() {
                     if let Some(dir) = FileDialog::new().set_directory(".").pick_folder() {
                         *self.selected_dir = Some(dir);
+                        self.warning_message.clear(); // Clear warning on selection
                     }
                 }
                 if let Some(dir) = &self.selected_dir {
@@ -156,6 +160,7 @@ impl eframe::App for ModeSelector<'_> {
                 }
             });
 
+            // File Type Selection
             ui.label("File Type Selection:");
             ui.horizontal_wrapped(|ui| {
                 for mode in &self.modes {
@@ -177,15 +182,18 @@ impl eframe::App for ModeSelector<'_> {
                         .clicked()
                     {
                         *self.selected_mode = Some(mode.clone());
+                        self.warning_message.clear(); // Clear warning on selection
                     }
                 }
             });
 
+            // Clipboard Save Option
             ui.checkbox(
                 self.enable_clipboard_copy,
                 "Enable save to clipboard automatically",
             );
 
+            // Additional Commands Box
             ui.label("Additional Commands:");
             ui.add(
                 egui::TextEdit::multiline(self.additional_commands)
@@ -194,6 +202,7 @@ impl eframe::App for ModeSelector<'_> {
                     .clip_text(false),
             );
 
+            // Preset Commands
             ui.label("Preset Commands:");
             ui.horizontal_wrapped(|ui| {
                 let presets = vec![
@@ -225,6 +234,26 @@ impl eframe::App for ModeSelector<'_> {
                     }
                 }
             });
+
+            ui.separator();
+
+            // Display Warning Message (if any)
+            if !self.warning_message.is_empty() {
+                ui.colored_label(egui::Color32::RED, &self.warning_message);
+            }
+
+            // OK Button with Validation
+            if ui.button("OK").clicked() {
+                if self.selected_dir.is_none() {
+                    self.warning_message =
+                        "⚠️ Please select a directory before proceeding!".to_string();
+                } else if self.selected_mode.is_none() {
+                    self.warning_message =
+                        "⚠️ Please select a file type before proceeding!".to_string();
+                } else {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
         });
     }
 }
