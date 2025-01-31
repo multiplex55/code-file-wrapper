@@ -17,6 +17,8 @@
 ## 📌 Version  
 - **Latest Release:** `0.2.0`
 - **Author:** `Multiplex55`
+- **License:** MIT  
+- **Platform:** 🖥 Windows    
 
 ---
 
@@ -116,6 +118,21 @@ TODO: Add feature X...
 
 ---
 
+## 📊 Example Use Cases  
+
+### 📝 **AI Context Provider**
+- Useful for AI models like ChatGPT when asking for **code improvements or bug fixes**.  
+- Helps **preserve file structure** by wrapping content inside **tagged blocks**.
+
+### 🔍 **Automated Documentation**
+- Can assist in **automatically extracting** relevant portions of code for documentation.  
+- Provides a **consistent format** that can be parsed by other scripts.
+
+### 💾 **Clipboard Integration**
+- Allows quick **copy-pasting** of formatted code content into emails, documentation, or issue reports.
+
+---
+
 ## 🤝 Contributing  
 
 🎉 **We welcome contributions!** 🎉  
@@ -136,4 +153,3 @@ To contribute:
 ## 🌟 Show Some Love!  
 
 If you like this project, **drop a ⭐ on GitHub!** 🚀  
-
