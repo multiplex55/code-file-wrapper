@@ -100,13 +100,20 @@ impl eframe::App for ModeSelector<'_> {
             );
 
             // Additional Commands Box
-            ui.label("Additional Commands:");
-            ui.add(
-                egui::TextEdit::multiline(self.additional_commands)
-                    .desired_width(400.0)
-                    .desired_rows(5)
-                    .clip_text(false),
-            );
+            ui.group(|ui| {
+                ui.label("Additional Commands:");
+
+                egui::ScrollArea::both()
+                    .max_height(200.0) // Prevents excessive height growth
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(self.additional_commands)
+                                .desired_width(ui.available_width()) // Allow resizing in width
+                                .desired_rows(5)
+                                .clip_text(false),
+                        );
+                    });
+            });
 
             // Preset Command Selection with Tooltips
             ui.label("Preset Commands:");
