@@ -144,7 +144,7 @@ impl eframe::App for ModeSelector<'_> {
                         }
                     }
 
-                    button.on_hover_text(format!("Will add: \"{}\"", preset.text));
+                    button.on_hover_text(format!("Will add: \n\n\"{}\"", preset.text));
                 }
             });
 
