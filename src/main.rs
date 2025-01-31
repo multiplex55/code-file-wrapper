@@ -63,6 +63,11 @@ fn main() {
     std::process::exit(0);
 }
 
+struct Preset {
+    name: &'static str,
+    text: &'static str,
+}
+
 fn mode_selection_gui(
     modes: Vec<&str>,
     initial_pos: Option<(f32, f32)>,
@@ -72,7 +77,6 @@ fn mode_selection_gui(
     let mut additional_commands = String::new();
     let mut selected_dir: Option<PathBuf> = None;
     let mut preset_texts = Vec::new();
-    let mut selected_file_type: Option<String> = None;
 
     let app = ModeSelector::new(
         modes,
@@ -81,7 +85,6 @@ fn mode_selection_gui(
         &mut additional_commands,
         &mut selected_dir,
         &mut preset_texts,
-        &mut selected_file_type,
     );
 
     let options = eframe::NativeOptions {
@@ -106,11 +109,6 @@ fn mode_selection_gui(
     )
 }
 
-struct Preset {
-    name: &'static str,
-    text: &'static str,
-}
-
 struct ModeSelector<'a> {
     modes: Vec<String>,
     selected_mode: &'a mut Option<String>,
@@ -118,7 +116,6 @@ struct ModeSelector<'a> {
     additional_commands: &'a mut String,
     selected_dir: &'a mut Option<PathBuf>,
     preset_texts: &'a mut Vec<String>,
-    selected_file_type: &'a mut Option<String>,
 }
 
 impl<'a> ModeSelector<'a> {
@@ -129,7 +126,6 @@ impl<'a> ModeSelector<'a> {
         additional_commands: &'a mut String,
         selected_dir: &'a mut Option<PathBuf>,
         preset_texts: &'a mut Vec<String>,
-        selected_file_type: &'a mut Option<String>,
     ) -> Self {
         Self {
             modes: modes.into_iter().map(String::from).collect(),
@@ -138,7 +134,6 @@ impl<'a> ModeSelector<'a> {
             additional_commands,
             selected_dir,
             preset_texts,
-            selected_file_type,
         }
     }
 }
@@ -164,14 +159,14 @@ impl eframe::App for ModeSelector<'_> {
             ui.label("File Type Selection:");
             ui.horizontal_wrapped(|ui| {
                 for mode in &self.modes {
-                    let is_selected = self.selected_file_type.as_deref() == Some(mode);
-                    let default_bg = ui.visuals().widgets.inactive.bg_fill; 
-                    let default_text = ui.visuals().widgets.inactive.fg_stroke.color; 
+                    let is_selected = self.selected_mode.as_deref() == Some(mode);
+                    let default_bg = ui.visuals().widgets.inactive.bg_fill;
+                    let default_text = ui.visuals().widgets.inactive.fg_stroke.color;
 
                     let (bg_color, text_color) = if is_selected {
                         (egui::Color32::from_rgb(0, 120, 40), egui::Color32::WHITE)
                     } else {
-                        (default_bg, default_text) 
+                        (default_bg, default_text)
                     };
 
                     if ui
@@ -181,7 +176,7 @@ impl eframe::App for ModeSelector<'_> {
                         )
                         .clicked()
                     {
-                        *self.selected_file_type = Some(mode.clone());
+                        *self.selected_mode = Some(mode.clone());
                     }
                 }
             });
