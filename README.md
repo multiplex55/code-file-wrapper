@@ -18,14 +18,14 @@
 - **Latest Release:** `0.2.0`
 - **Author:** `Multiplex55`
 - **License:** MIT  
-- **Platform:** 🖥 Windows    
+- **Platform:** 🖥 Windows  
 
 ---
 
 ## ✨ Features  
 ✅ **Wraps files inside XML-like tags**  
 ✅ **Supports multiple languages** (`.rs`, `.json`, `.xml`, `.c`, `.cpp`, `.ahk`, etc.)  
-✅ **GUI Mode & CLI Mode** 🎨📜  
+✅ **Graphical User Interface (GUI)** 🎨  
 ✅ **Clipboard Integration** 📋  
 ✅ **Multi-line Notes Section** 📝  
 ✅ **Error Handling & Debugging Messages** ⚠️  
@@ -63,15 +63,8 @@ cargo build --release
 
 ## 🚀 Usage  
 
-### **CLI Mode**  
-Run the program with a folder path:
-
-```sh
-./code-file-wrapper /path/to/directory
-```
-
-### **GUI Mode**  
-To launch the interactive GUI mode:
+### **Launching the GUI Mode**  
+Simply run the executable to open the graphical user interface:
 
 ```sh
 ./code-file-wrapper
@@ -86,19 +79,22 @@ To launch the interactive GUI mode:
 
 ## 📜 How It Works  
 
-### **Flowchart of Execution**  
+### **Updated Flowchart of Execution**  
 ```mermaid
 graph TD;
-    A[Start] -->|CLI Path Provided| B[Process Folder]
-    A -->|No Path Provided| C[Open GUI]
-    B --> D[Filter & Read Files]
-    C --> E[User Selects Mode & Options]
-    D --> F[Wrap Content in Tags]
-    E --> F
-    F --> G[Write to tags_output.txt]
-    G --> H[Append User Notes]
-    H -->|Clipboard Enabled| I[Copy to Clipboard]
-    H -->|Exit| J[Done! 🎉]
+    A[Start] --> B[Open GUI]
+    B --> C[User Selects Directory]
+    C --> D[User Chooses File Type]
+    D --> E[User Adds Additional Commands]
+    E --> F[Process Files]
+    F -->|Valid Files Found| G[Wrap Content in Tags]
+    F -->|No Valid Files| H[Show Error Message]
+    G --> I[Write to tags_output.txt]
+    I --> J[Append Additional Commands]
+    J -->|Clipboard Enabled| K[Copy to Clipboard]
+    J -->|Clipboard Disabled| L[Skip Copy]
+    K --> M[Success: Exit]
+    L --> M
 ```
 
 ---
