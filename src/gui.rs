@@ -66,10 +66,18 @@ impl eframe::App for ModeSelector<'_> {
                 }
             });
 
-            // File Type Selection
+            // File Type Selection with Tooltip
             ui.label("File Type Selection:");
             ui.horizontal_wrapped(|ui| {
-                for mode in &self.modes {
+                let file_types = vec![
+                    ("AHK", "ahk"),
+                    ("Rust", "rs"),
+                    ("JSON", "json"),
+                    ("XML", "xml"),
+                    ("C/CPP", "c, cpp, h"),
+                ];
+
+                for (mode, extensions) in file_types {
                     let is_selected = self.selected_mode.as_deref() == Some(mode);
                     let default_bg = ui.visuals().widgets.inactive.bg_fill;
                     let default_text = ui.visuals().widgets.inactive.fg_stroke.color;
@@ -80,16 +88,17 @@ impl eframe::App for ModeSelector<'_> {
                         (default_bg, default_text)
                     };
 
-                    if ui
-                        .add(
-                            egui::Button::new(egui::RichText::new(mode).color(text_color))
-                                .fill(bg_color),
-                        )
-                        .clicked()
-                    {
-                        *self.selected_mode = Some(mode.clone());
+                    let button = ui.add(
+                        egui::Button::new(egui::RichText::new(mode).color(text_color))
+                            .fill(bg_color),
+                    );
+
+                    if button.clicked() {
+                        *self.selected_mode = Some(mode.to_string());
                         self.warning_message.clear();
                     }
+
+                    button.on_hover_text(format!("Includes files with extensions: {}", extensions));
                 }
             });
 
@@ -99,7 +108,7 @@ impl eframe::App for ModeSelector<'_> {
                 "Enable save to clipboard automatically",
             );
 
-            // Additional Commands
+            // Additional Commands Box
             ui.label("Additional Commands:");
             ui.add(
                 egui::TextEdit::multiline(self.additional_commands)
@@ -108,7 +117,7 @@ impl eframe::App for ModeSelector<'_> {
                     .clip_text(false),
             );
 
-            // Preset Selection
+            // Preset Command Selection with Tooltips
             ui.label("Preset Commands:");
             ui.horizontal_wrapped(|ui| {
                 for preset in &self.presets {
@@ -122,30 +131,31 @@ impl eframe::App for ModeSelector<'_> {
                         (default_bg, default_text)
                     };
 
-                    if ui
-                        .add(
-                            egui::Button::new(egui::RichText::new(preset.name).color(text_color))
-                                .fill(bg_color),
-                        )
-                        .clicked()
-                    {
+                    let button = ui.add(
+                        egui::Button::new(egui::RichText::new(preset.name).color(text_color))
+                            .fill(bg_color),
+                    );
+
+                    if button.clicked() {
                         if is_selected {
                             self.selected_presets.remove(preset.name);
                         } else {
                             self.selected_presets.insert(preset.name.to_string());
                         }
                     }
+
+                    button.on_hover_text(format!("Will add: \"{}\"", preset.text));
                 }
             });
 
             ui.separator();
 
-            // Display Warnings
+            // Display Warning Message (if any)
             if !self.warning_message.is_empty() {
                 ui.colored_label(egui::Color32::RED, &self.warning_message);
             }
 
-            // OK Button - Validate Selections
+            // OK Button with Validation
             if ui.button("OK").clicked() {
                 if self.selected_dir.is_none() {
                     self.warning_message =
