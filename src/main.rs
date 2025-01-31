@@ -165,13 +165,22 @@ impl eframe::App for ModeSelector<'_> {
             ui.horizontal_wrapped(|ui| {
                 for mode in &self.modes {
                     let is_selected = self.selected_file_type.as_deref() == Some(mode);
-                    let color = if is_selected {
-                        egui::Color32::from_rgb(4, 175, 80)
+                    let default_bg = ui.visuals().widgets.inactive.bg_fill; 
+                    let default_text = ui.visuals().widgets.inactive.fg_stroke.color; 
+
+                    let (bg_color, text_color) = if is_selected {
+                        (egui::Color32::from_rgb(0, 120, 40), egui::Color32::WHITE)
                     } else {
-                        egui::Color32::default()
+                        (default_bg, default_text) 
                     };
 
-                    if ui.add(egui::Button::new(mode).fill(color)).clicked() {
+                    if ui
+                        .add(
+                            egui::Button::new(egui::RichText::new(mode).color(text_color))
+                                .fill(bg_color),
+                        )
+                        .clicked()
+                    {
                         *self.selected_file_type = Some(mode.clone());
                     }
                 }
