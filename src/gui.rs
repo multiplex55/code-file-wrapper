@@ -66,18 +66,9 @@ impl eframe::App for ModeSelector<'_> {
                 }
             });
 
-            // File Type Selection with Tooltip
             ui.label("File Type Selection:");
             ui.horizontal_wrapped(|ui| {
-                let file_types = vec![
-                    ("AHK", "ahk"),
-                    ("Rust", "rs"),
-                    ("JSON", "json"),
-                    ("XML", "xml"),
-                    ("C/CPP", "c, cpp, h"),
-                ];
-
-                for (mode, extensions) in file_types {
+                for mode in &self.modes {
                     let is_selected = self.selected_mode.as_deref() == Some(mode);
                     let default_bg = ui.visuals().widgets.inactive.bg_fill;
                     let default_text = ui.visuals().widgets.inactive.fg_stroke.color;
@@ -94,11 +85,11 @@ impl eframe::App for ModeSelector<'_> {
                     );
 
                     if button.clicked() {
-                        *self.selected_mode = Some(mode.to_string());
+                        *self.selected_mode = Some(mode.clone());
                         self.warning_message.clear();
                     }
 
-                    button.on_hover_text(format!("Includes files with extensions: {}", extensions));
+                    button.on_hover_text(format!("Includes files with extensions: {:?}", mode));
                 }
             });
 
