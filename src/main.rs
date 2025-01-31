@@ -28,8 +28,12 @@ fn main() {
     ]);
 
     let cursor_position = get_cursor_position();
+
+    let mut mode_list: Vec<&str> = modes.keys().cloned().collect();
+    mode_list.sort_unstable(); // Sort the modes alphabetically
+
     let (selected_dir, selected_mode, enable_clipboard_copy, additional_commands, preset_texts) =
-        mode_selection_gui(modes.keys().cloned().collect(), cursor_position);
+        mode_selection_gui(mode_list, cursor_position);
 
     let Some(dir) = selected_dir else {
         eprintln!("⚠️ No directory selected. Exiting.");
@@ -72,7 +76,7 @@ fn main() {
     std::process::exit(0);
 }
 
-/// Launches the mode selection GUI.
+/// Launches the mode selection GUI at the cursor position.
 ///
 /// # Returns
 /// - `selected_dir`: The directory chosen by the user.
@@ -91,6 +95,9 @@ fn mode_selection_gui(
     let mut preset_texts = Vec::new();
     let presets = get_presets(); // Fetch preset commands dynamically
 
+    // Retrieve cursor position if available
+    let (x, y) = initial_pos.unwrap_or((100.0, 100.0)); // Default if position is unavailable
+
     let app = ModeSelector::new(
         modes,
         &mut selected_mode,
@@ -103,7 +110,8 @@ fn mode_selection_gui(
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([600.0, 450.0])
-            .with_min_inner_size([500.0, 350.0]),
+            .with_min_inner_size([500.0, 350.0])
+            .with_position([x, y]), // Set GUI position to cursor location
         ..Default::default()
     };
 
