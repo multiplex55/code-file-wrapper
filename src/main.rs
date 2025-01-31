@@ -1,15 +1,23 @@
+//! # Main Entry Point
+//!
+//! This is the main executable for the `code-file-wrapper` program.
+//! It handles command-line argument parsing, GUI interaction, and file operations.
+
 mod file_ops;
-use crate::file_ops::write_folder_tags;
-use clipboard_win::{formats, Clipboard, Setter};
+mod gui;
+mod presets;
+mod utils;
+
+use crate::file_ops::{append_additional_commands, write_folder_tags};
+use crate::gui::ModeSelector;
+use crate::presets::get_presets;
+use crate::utils::{copy_to_clipboard, get_cursor_position};
+
 use eframe::egui;
-use rfd::FileDialog;
 use std::collections::HashMap;
-use std::collections::HashSet;
-use std::fs::{read_to_string, OpenOptions};
-use std::io;
-use std::io::Write;
 use std::path::PathBuf;
 
+/// Main function that orchestrates the program execution.
 fn main() {
     let modes: HashMap<&str, Vec<&str>> = HashMap::from([
         ("AHK", vec!["ahk"]),
@@ -64,196 +72,14 @@ fn main() {
     std::process::exit(0);
 }
 
-#[derive(Debug, Clone)]
-struct PresetCommand {
-    name: &'static str,
-    text: &'static str,
-}
-
-/// Define all preset commands in a single place
-fn get_presets() -> Vec<PresetCommand> {
-    vec![
-        PresetCommand {
-            name: "Button 1",
-            text: "Preset text for Button 1",
-        },
-        PresetCommand {
-            name: "Button 2",
-            text: "Preset text for Button 2",
-        },
-        PresetCommand {
-            name: "Button 3",
-            text: "Preset text for Button 3",
-        },
-        PresetCommand {
-            name: "Button 4",
-            text: "Preset text for Button 4",
-        },
-        PresetCommand {
-            name: "Button 5",
-            text: "Preset text for Button 5",
-        },
-    ]
-}
-/// Struct for managing mode selection UI state
-struct ModeSelector<'a> {
-    modes: Vec<String>,
-    selected_mode: &'a mut Option<String>,
-    enable_clipboard_copy: &'a mut bool,
-    additional_commands: &'a mut String,
-    selected_dir: &'a mut Option<PathBuf>,
-    preset_texts: &'a mut Vec<String>,
-    selected_presets: HashSet<String>,
-    warning_message: String,
-    presets: Vec<PresetCommand>, // Store preset buttons dynamically
-}
-
-impl<'a> ModeSelector<'a> {
-    fn new(
-        modes: Vec<&str>,
-        selected_mode: &'a mut Option<String>,
-        enable_clipboard_copy: &'a mut bool,
-        additional_commands: &'a mut String,
-        selected_dir: &'a mut Option<PathBuf>,
-        preset_texts: &'a mut Vec<String>,
-        presets: Vec<PresetCommand>,
-    ) -> Self {
-        Self {
-            modes: modes.into_iter().map(String::from).collect(),
-            selected_mode,
-            enable_clipboard_copy,
-            additional_commands,
-            selected_dir,
-            preset_texts,
-            selected_presets: HashSet::new(),
-            warning_message: String::new(),
-            presets, // Pass presets dynamically
-        }
-    }
-}
-
-impl eframe::App for ModeSelector<'_> {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            // Directory Selection
-            ui.horizontal(|ui| {
-                if ui.button("Select Directory").clicked() {
-                    if let Some(dir) = FileDialog::new().set_directory(".").pick_folder() {
-                        *self.selected_dir = Some(dir);
-                        self.warning_message.clear();
-                    }
-                }
-                if let Some(dir) = &self.selected_dir {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut dir.display().to_string())
-                            .desired_width(300.0)
-                            .interactive(false),
-                    );
-                }
-            });
-
-            // File Type Selection
-            ui.label("File Type Selection:");
-            ui.horizontal_wrapped(|ui| {
-                for mode in &self.modes {
-                    let is_selected = self.selected_mode.as_deref() == Some(mode);
-                    let default_bg = ui.visuals().widgets.inactive.bg_fill;
-                    let default_text = ui.visuals().widgets.inactive.fg_stroke.color;
-
-                    let (bg_color, text_color) = if is_selected {
-                        (egui::Color32::from_rgb(0, 120, 40), egui::Color32::WHITE)
-                    } else {
-                        (default_bg, default_text)
-                    };
-
-                    if ui
-                        .add(
-                            egui::Button::new(egui::RichText::new(mode).color(text_color))
-                                .fill(bg_color),
-                        )
-                        .clicked()
-                    {
-                        *self.selected_mode = Some(mode.clone());
-                        self.warning_message.clear();
-                    }
-                }
-            });
-
-            // Clipboard Save Option
-            ui.checkbox(
-                self.enable_clipboard_copy,
-                "Enable save to clipboard automatically",
-            );
-
-            // Additional Commands Box
-            ui.label("Additional Commands:");
-            ui.add(
-                egui::TextEdit::multiline(self.additional_commands)
-                    .desired_width(400.0)
-                    .desired_rows(5)
-                    .clip_text(false),
-            );
-
-            // Preset Commands Selection
-            ui.label("Preset Commands:");
-            ui.horizontal_wrapped(|ui| {
-                for preset in &self.presets {
-                    let is_selected = self.selected_presets.contains(preset.name);
-                    let default_bg = ui.visuals().widgets.inactive.bg_fill;
-                    let default_text = ui.visuals().widgets.inactive.fg_stroke.color;
-
-                    let (bg_color, text_color) = if is_selected {
-                        (egui::Color32::from_rgb(0, 120, 40), egui::Color32::WHITE)
-                    } else {
-                        (default_bg, default_text)
-                    };
-
-                    if ui
-                        .add(
-                            egui::Button::new(egui::RichText::new(preset.name).color(text_color))
-                                .fill(bg_color),
-                        )
-                        .clicked()
-                    {
-                        if is_selected {
-                            self.selected_presets.remove(preset.name);
-                        } else {
-                            self.selected_presets.insert(preset.name.to_string());
-                        }
-                    }
-                }
-            });
-
-            ui.separator();
-
-            // Display Warning Message (if any)
-            if !self.warning_message.is_empty() {
-                ui.colored_label(egui::Color32::RED, &self.warning_message);
-            }
-
-            // OK Button with Validation
-            if ui.button("OK").clicked() {
-                if self.selected_dir.is_none() {
-                    self.warning_message =
-                        "⚠️ Please select a directory before proceeding!".to_string();
-                } else if self.selected_mode.is_none() {
-                    self.warning_message =
-                        "⚠️ Please select a file type before proceeding!".to_string();
-                } else {
-                    // Append selected presets when GUI closes
-                    for preset in &self.presets {
-                        if self.selected_presets.contains(preset.name) {
-                            self.preset_texts.push(preset.text.to_string());
-                        }
-                    }
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                }
-            }
-        });
-    }
-}
-
-/// Modified function to initialize the ModeSelector with presets
+/// Launches the mode selection GUI.
+///
+/// # Returns
+/// - `selected_dir`: The directory chosen by the user.
+/// - `selected_mode`: The selected file type.
+/// - `enable_clipboard_copy`: Whether to copy output to the clipboard.
+/// - `additional_commands`: Any additional commands entered by the user.
+/// - `preset_texts`: The texts associated with selected preset buttons.
 fn mode_selection_gui(
     modes: Vec<&str>,
     initial_pos: Option<(f32, f32)>,
@@ -263,7 +89,7 @@ fn mode_selection_gui(
     let mut additional_commands = String::new();
     let mut selected_dir: Option<PathBuf> = None;
     let mut preset_texts = Vec::new();
-    let presets = get_presets(); // Fetch preset buttons dynamically
+    let presets = get_presets(); // Fetch preset commands dynamically
 
     let app = ModeSelector::new(
         modes,
@@ -272,7 +98,6 @@ fn mode_selection_gui(
         &mut additional_commands,
         &mut selected_dir,
         &mut preset_texts,
-        presets, // Pass presets dynamically
     );
 
     let options = eframe::NativeOptions {
@@ -295,41 +120,4 @@ fn mode_selection_gui(
         additional_commands,
         preset_texts,
     )
-}
-
-fn append_additional_commands(file_path: &str, additional_commands: &str) -> std::io::Result<()> {
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(file_path)?;
-
-    writeln!(file, "\n[Additional Commands]")?;
-    writeln!(file, "{}\n", additional_commands)?;
-    Ok(())
-}
-
-fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
-    let file_contents = read_to_string(file_path)?;
-
-    let _clip = Clipboard::new_attempts(10)
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Clipboard access failed"))?;
-
-    formats::Unicode
-        .write_clipboard(&file_contents)
-        .map_err(|_| io::Error::new(io::ErrorKind::Other, "Failed to set clipboard contents"))?;
-
-    Ok(())
-}
-
-fn get_cursor_position() -> Option<(f32, f32)> {
-    use windows::Win32::Foundation::POINT;
-    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
-
-    let mut point = POINT { x: 0, y: 0 };
-    unsafe {
-        if GetCursorPos(&mut point).is_ok() {
-            return Some((point.x as f32, point.y as f32));
-        }
-    }
-    None
 }
