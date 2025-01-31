@@ -64,52 +64,38 @@ fn main() {
     std::process::exit(0);
 }
 
-struct Preset {
+#[derive(Debug, Clone)]
+struct PresetCommand {
     name: &'static str,
     text: &'static str,
 }
 
-fn mode_selection_gui(
-    modes: Vec<&str>,
-    initial_pos: Option<(f32, f32)>,
-) -> (Option<PathBuf>, Option<String>, bool, String, Vec<String>) {
-    let mut selected_mode: Option<String> = None;
-    let mut enable_clipboard_copy = false;
-    let mut additional_commands = String::new();
-    let mut selected_dir: Option<PathBuf> = None;
-    let mut preset_texts = Vec::new();
-
-    let app = ModeSelector::new(
-        modes,
-        &mut selected_mode,
-        &mut enable_clipboard_copy,
-        &mut additional_commands,
-        &mut selected_dir,
-        &mut preset_texts,
-    );
-
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([600.0, 450.0])
-            .with_min_inner_size([500.0, 350.0]),
-        ..Default::default()
-    };
-
-    let _ = eframe::run_native(
-        "Select Processing Mode",
-        options,
-        Box::new(|_cc| Ok(Box::new(app))),
-    );
-
-    (
-        selected_dir,
-        selected_mode,
-        enable_clipboard_copy,
-        additional_commands,
-        preset_texts,
-    )
+/// Define all preset commands in a single place
+fn get_presets() -> Vec<PresetCommand> {
+    vec![
+        PresetCommand {
+            name: "Button 1",
+            text: "Preset text for Button 1",
+        },
+        PresetCommand {
+            name: "Button 2",
+            text: "Preset text for Button 2",
+        },
+        PresetCommand {
+            name: "Button 3",
+            text: "Preset text for Button 3",
+        },
+        PresetCommand {
+            name: "Button 4",
+            text: "Preset text for Button 4",
+        },
+        PresetCommand {
+            name: "Button 5",
+            text: "Preset text for Button 5",
+        },
+    ]
 }
-
+/// Struct for managing mode selection UI state
 struct ModeSelector<'a> {
     modes: Vec<String>,
     selected_mode: &'a mut Option<String>,
@@ -117,8 +103,9 @@ struct ModeSelector<'a> {
     additional_commands: &'a mut String,
     selected_dir: &'a mut Option<PathBuf>,
     preset_texts: &'a mut Vec<String>,
-    selected_presets: HashSet<String>, // Track selected presets
+    selected_presets: HashSet<String>,
     warning_message: String,
+    presets: Vec<PresetCommand>, // Store preset buttons dynamically
 }
 
 impl<'a> ModeSelector<'a> {
@@ -129,6 +116,7 @@ impl<'a> ModeSelector<'a> {
         additional_commands: &'a mut String,
         selected_dir: &'a mut Option<PathBuf>,
         preset_texts: &'a mut Vec<String>,
+        presets: Vec<PresetCommand>,
     ) -> Self {
         Self {
             modes: modes.into_iter().map(String::from).collect(),
@@ -137,8 +125,9 @@ impl<'a> ModeSelector<'a> {
             additional_commands,
             selected_dir,
             preset_texts,
-            selected_presets: HashSet::new(), // Initialize empty set
+            selected_presets: HashSet::new(),
             warning_message: String::new(),
+            presets, // Pass presets dynamically
         }
     }
 }
@@ -151,7 +140,7 @@ impl eframe::App for ModeSelector<'_> {
                 if ui.button("Select Directory").clicked() {
                     if let Some(dir) = FileDialog::new().set_directory(".").pick_folder() {
                         *self.selected_dir = Some(dir);
-                        self.warning_message.clear(); // Clear warning on selection
+                        self.warning_message.clear();
                     }
                 }
                 if let Some(dir) = &self.selected_dir {
@@ -208,16 +197,8 @@ impl eframe::App for ModeSelector<'_> {
             // Preset Commands Selection
             ui.label("Preset Commands:");
             ui.horizontal_wrapped(|ui| {
-                let presets = vec![
-                    ("Button 1", "Preset text for Button 1"),
-                    ("Button 2", "Preset text for Button 2"),
-                    ("Button 3", "Preset text for Button 3"),
-                    ("Button 4", "Preset text for Button 4"),
-                    ("Button 5", "Preset text for Button 5"),
-                ];
-
-                for (name, text) in &presets {
-                    let is_selected = self.selected_presets.contains(*name);
+                for preset in &self.presets {
+                    let is_selected = self.selected_presets.contains(preset.name);
                     let default_bg = ui.visuals().widgets.inactive.bg_fill;
                     let default_text = ui.visuals().widgets.inactive.fg_stroke.color;
 
@@ -229,15 +210,15 @@ impl eframe::App for ModeSelector<'_> {
 
                     if ui
                         .add(
-                            egui::Button::new(egui::RichText::new(*name).color(text_color))
+                            egui::Button::new(egui::RichText::new(preset.name).color(text_color))
                                 .fill(bg_color),
                         )
                         .clicked()
                     {
                         if is_selected {
-                            self.selected_presets.remove(*name);
+                            self.selected_presets.remove(preset.name);
                         } else {
-                            self.selected_presets.insert(name.to_string());
+                            self.selected_presets.insert(preset.name.to_string());
                         }
                     }
                 }
@@ -260,23 +241,60 @@ impl eframe::App for ModeSelector<'_> {
                         "⚠️ Please select a file type before proceeding!".to_string();
                 } else {
                     // Append selected presets when GUI closes
-                    for preset in &self.selected_presets {
-                        let preset_text = match preset.as_str() {
-                            "Button 1" => "Preset text for Button 1",
-                            "Button 2" => "Preset text for Button 2",
-                            "Button 3" => "Preset text for Button 3",
-                            "Button 4" => "Preset text for Button 4",
-                            "Button 5" => "Preset text for Button 5",
-                            _ => "",
-                        };
-                        self.preset_texts.push(preset_text.to_string());
+                    for preset in &self.presets {
+                        if self.selected_presets.contains(preset.name) {
+                            self.preset_texts.push(preset.text.to_string());
+                        }
                     }
-
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             }
         });
     }
+}
+
+/// Modified function to initialize the ModeSelector with presets
+fn mode_selection_gui(
+    modes: Vec<&str>,
+    initial_pos: Option<(f32, f32)>,
+) -> (Option<PathBuf>, Option<String>, bool, String, Vec<String>) {
+    let mut selected_mode: Option<String> = None;
+    let mut enable_clipboard_copy = false;
+    let mut additional_commands = String::new();
+    let mut selected_dir: Option<PathBuf> = None;
+    let mut preset_texts = Vec::new();
+    let presets = get_presets(); // Fetch preset buttons dynamically
+
+    let app = ModeSelector::new(
+        modes,
+        &mut selected_mode,
+        &mut enable_clipboard_copy,
+        &mut additional_commands,
+        &mut selected_dir,
+        &mut preset_texts,
+        presets, // Pass presets dynamically
+    );
+
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([600.0, 450.0])
+            .with_min_inner_size([500.0, 350.0]),
+        ..Default::default()
+    };
+
+    let _ = eframe::run_native(
+        "Select Processing Mode",
+        options,
+        Box::new(|_cc| Ok(Box::new(app))),
+    );
+
+    (
+        selected_dir,
+        selected_mode,
+        enable_clipboard_copy,
+        additional_commands,
+        preset_texts,
+    )
 }
 
 fn append_additional_commands(file_path: &str, additional_commands: &str) -> std::io::Result<()> {
