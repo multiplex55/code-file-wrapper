@@ -1,95 +1,122 @@
-# Code File Wrapper
 
-`Code File Wrapper` is a Rust CLI application that creates a text file (`tags_output.txt`) containing the contents of human-readable files (based on certain file extensions) in a selected or provided directory, wrapped in tags.
+<h1 align="center">Code File Wrapper</h1>
 
-## Overview
+<p align="center">
+  <b>Wrap your code files inside XML-style tags effortlessly! 🚀</b> <br>
+  <i>Supports multiple languages, GUI mode, clipboard integration, and more!</i>
+</p>
 
-This application either:
-1. Uses an **optional command-line argument** (a full path to a directory).
-2. Or, if no path is provided, launches a **folder-picker dialog** for you to select a directory.
+<p align="center">
+  <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/multiplex55/code-file-wrapper">
+  <img alt="GitHub stars" src="https://img.shields.io/github/stars/multiplex55/code-file-wrapper?style=social">
+  <img alt="GitHub license" src="https://img.shields.io/github/license/multiplex55/code-file-wrapper">
+  <img alt="Rust Version" src="https://img.shields.io/badge/Rust-Edition%202021-orange">
+</p>
 
-All files in that directory with the following extensions are considered human-readable and processed:
-- `.ini`
-- `.txt`
-- `.rs`
-- `.cs`
-- `.json`
-- `.xml`
+---
 
-Any files with extensions not included in this list (e.g., `.exe`, `.pdb`) are ignored.
+## ✨ Features
+✅ **Wraps files inside XML-like tags**  
+✅ **Supports multiple languages** (`.rs`, `.json`, `.xml`, `.c`, `.cpp`, `.ahk`, etc.)  
+✅ **GUI Mode & CLI Mode** 🎨📜  
+✅ **Clipboard Integration** 📋  
+✅ **Multi-line Notes Section** 📝  
+✅ **Error Handling & Debugging Messages** ⚠️  
+✅ **Lightweight & Blazing Fast** ⚡  
+✅ **Useful for providing context to AIs or documentation** 🤖
 
-## Usage
+---
 
-1. **Build** the project in the root directory:
-   ```bash
-   cargo build
-   ```
-2. **Run** the binary:
-   ```bash
-   cargo run -- [optional_path]
-   ```
-   - If you **do not** provide a path, a **folder picker** will open.
-   - If you **provide a path** (e.g., `C:\my_project` on Windows or `/home/user/my_project` on Linux), the application will immediately process that path without opening the folder picker.
-   - If the provided path does not exist or is invalid, the application will exit.
+## 📥 Installation
 
-## Output
+**Prerequisites:**  
+- 🦀 [Rust Installed](https://www.rust-lang.org/tools/install)  
 
-The application creates an output file named `tags_output.txt` in the **current working directory**. This file contains entries in the following format:
+Clone the repo and build:  
 
-```plaintext
-<filename.ext>
-contents of filename.ext
-</filename.ext>
+```sh
+git clone https://github.com/your-username/code-file-wrapper.git
+cd code-file-wrapper
+cargo build --release
 ```
 
-Each file in the processed folder that meets the extension criteria will have its contents inserted into the `tags_output.txt` file, wrapped in opening and closing tags corresponding to the file name.
+---
 
-### Example
+## 🚀 Usage  
 
-Suppose the directory `my_rust_project/src` has the following files:
-- `main.rs`
-- `utils.rs`
-- `notes.txt`
-- `logo.png`  _(not processed, since `.png` is not in the valid list)_
+### **CLI Mode**  
 
-After running:
+To run **CLI mode**, provide a folder path:  
 
-```bash
-cargo run -- /path/to/my_rust_project/src
+```sh
+./code-file-wrapper /path/to/directory
 ```
 
-The resulting `tags_output.txt` would contain something like:
+### **GUI Mode**  
+To launch the interactive **GUI mode**, just run:
 
+```sh
+./code-file-wrapper
+```
+
+**GUI Features:**  
+✔️ **Select a processing mode**  
+✔️ **Enable automatic clipboard saving**  
+✔️ **Provide additional multi-line notes**  
+
+---
+
+## 📜 How It Works  
+
+### **Flowchart of Execution**  
+```mermaid
+graph TD;
+    A[Start] -->|CLI Path Provided| B[Process Folder]
+    A -->|No Path Provided| C[Open GUI]
+    B --> D[Filter & Read Files]
+    C --> E[User Selects Mode & Options]
+    D --> F[Wrap Content in Tags]
+    E --> F
+    F --> G[Write to tags_output.txt]
+    G --> H[Append User Notes]
+    H -->|Clipboard Enabled| I[Copy to Clipboard]
+    H -->|Exit| J[Done! 🎉]
+```
+
+---
+## ➡️ Output
+**Final Output Example (`tags_output.txt`):**  
 ```
 <main.rs>
-// contents of main.rs
+fn main() {
+    println!("Hello, world!");
+}
 </main.rs>
 
-<utils.rs>
-// contents of utils.rs
-</utils.rs>
-
-<notes.txt>
-# contents of notes.txt
-</notes.txt>
+[Additional Commands]
+TODO: Add feature X...
 ```
 
-## Supported Platforms
+---
 
-- macOS
-- Linux
-- Windows
+## 🤝 Contributing  
 
-### Dependencies
+🎉 **We welcome contributions!** 🎉  
 
-- [Rust](https://www.rust-lang.org/) (1.60+ recommended)
-- [Clap 4.3+](https://crates.io/crates/clap)
-- [rfd 0.12+](https://crates.io/crates/rfd)
+To contribute:  
+1. **Fork** the repository  
+2. Create a **feature branch**  
+3. **Submit a pull request**  
 
-## License
+---
 
-This project is distributed under the terms of the [MIT license](LICENSE).
+## ⚖️ License  
 
-## Contributing
+📜 **MIT License** - Feel free to modify and distribute!  
 
-Contributions, suggestions, and improvements are welcome! Feel free to open an issue or create a pull request.
+---
+
+## 🌟 Show Some Love!  
+
+If you like this project, **drop a ⭐ on GitHub!**  
+```
