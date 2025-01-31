@@ -9,10 +9,38 @@ pub struct PresetCommand {
     pub text: &'static str,
 }
 
-/// Returns a list of preset commands.
+/// Returns a list of preset commands available in the application.
 ///
 /// # Returns
-/// - `Vec<PresetCommand>`: A list of available preset commands.
+/// - A `Vec<PresetCommand>` containing predefined command presets.
+/// Each `PresetCommand` consists of a `name` (a short description) and `text` (detailed command content).
+///
+/// # Behavior
+/// - This function constructs and returns a vector of `PresetCommand` instances.
+/// - Each preset represents a predefined user command that can be selected in the GUI.
+///
+/// # Preset Structure
+/// Each preset consists of:
+/// - `name`: A short descriptive label displayed in the GUI.
+/// - `text`: The actual content that will be inserted when the preset is selected.
+///
+/// # Example Usage
+/// ```rust
+/// let presets = get_presets();
+/// for preset in presets {
+///     println!("Preset: {} -> {}", preset.name, preset.text);
+/// }
+/// ```
+///
+/// # Available Presets
+/// - **"Create Function Documentation"**: Generates structured documentation for functions.
+/// - **"Create Readme"**: Generates an extensive README file with rich formatting.
+/// - **"Button 3" - "Button 5"**: Reserved for future extensions.
+///
+/// # Notes
+/// - The function returns static string slices (`&'static str`) for better memory efficiency.
+/// - The content of `text` can be multiline, allowing for detailed instructions.
+/// - The function is useful for populating UI elements or handling predefined automation tasks.
 pub fn get_presets() -> Vec<PresetCommand> {
     vec![
         PresetCommand {
@@ -23,6 +51,7 @@ provide information such as panics, parameters, all the interesting stuff about 
 
 write the documentation as code blocks that appear above the function, similar to how other proper documentated rust functions are with code blocks
 
+prompt with the name of the function, do not respond with the code body of the function, only the documentation
 start with the main function
 
 use "///" for the function blocks"#,

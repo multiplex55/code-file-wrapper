@@ -16,7 +16,40 @@ use eframe::egui;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-/// Main function that orchestrates the program execution.
+/// The main entry point of the `code-file-wrapper` program.
+///
+/// # Overview
+/// This function initializes the program, retrieves user selections via the GUI,
+/// processes selected files based on their extensions, and writes the formatted output
+/// to `tags_output.txt`. Additionally, it can copy the output to the clipboard if
+/// requested by the user.
+///
+/// # Functionality
+/// - Retrieves the cursor position to open the GUI at the cursor's location.
+/// - Displays a GUI allowing the user to select:
+///   - A directory containing the files.
+///   - A mode corresponding to file extensions.
+///   - Whether to copy the output to the clipboard.
+///   - Additional commands to append to the output.
+/// - Reads and filters files from the selected directory based on the selected mode.
+/// - Writes the tagged file contents to `tags_output.txt`.
+/// - Appends additional commands and preset texts if selected.
+/// - Optionally copies the output to the clipboard.
+///
+/// # Panics
+/// - This function will terminate the process (`std::process::exit(1)`) if:
+///   - No directory is selected.
+///   - The selected path is not a valid directory.
+///   - Writing to `tags_output.txt` fails.
+///
+/// # Errors
+/// - If appending additional commands or copying to the clipboard fails, an error message is printed to `stderr`,
+///   but the program will continue execution.
+///
+/// # Side Effects
+/// - Creates `tags_output.txt` in the current working directory.
+/// - Opens a graphical user interface for mode selection.
+/// - Can modify the system clipboard contents.
 fn main() {
     let modes: HashMap<&str, Vec<&str>> = HashMap::from([
         ("AHK", vec!["ahk"]),
@@ -75,14 +108,32 @@ fn main() {
     std::process::exit(0);
 }
 
-/// Launches the mode selection GUI at the cursor position.
+/// - `Option<PathBuf>`: The directory selected by the user.
+/// - `Option<String>`: The file type mode selected by the user.
+/// - `bool`: A boolean indicating whether clipboard copy is enabled.
+/// - `String`: Additional commands entered by the user.
+/// - `Vec<String>`: A vector of preset command texts selected by the user.
 ///
-/// # Returns
-/// - `selected_dir`: The directory chosen by the user.
-/// - `selected_mode`: The selected file type.
-/// - `enable_clipboard_copy`: Whether to copy output to the clipboard.
-/// - `additional_commands`: Any additional commands entered by the user.
-/// - `preset_texts`: The texts associated with selected preset buttons.
+/// # Behavior
+/// - The GUI provides file type selection buttons dynamically sorted alphabetically.
+/// - The user can select a directory and file type for processing.
+/// - Additional commands and preset commands can be added to be included in the output file.
+/// - The GUI will be positioned at the cursor location if available, otherwise, a default position `(100.0, 100.0)` is used.
+///
+/// # Panics
+/// - This function does not explicitly panic but will terminate the application if the GUI encounters an unrecoverable error.
+///
+/// # Example Usage
+/// ```rust
+/// let modes = vec!["AHK", "Rust", "JSON"];
+/// let cursor_position = get_cursor_position();
+/// let (dir, mode, clipboard, commands, presets) = mode_selection_gui(modes, cursor_position);
+/// ```
+///
+/// # Notes
+/// - The GUI is implemented using `egui` and launched via `eframe::run_native`.
+/// - The function blocks execution until the user closes the GUI.
+/// - Selected options are returned for further processing in `main.rs`.
 fn mode_selection_gui(
     modes: Vec<&str>,
     initial_pos: Option<(f32, f32)>,
