@@ -1,7 +1,3 @@
-Here is the updated **README** with the `clipboard-win` change reflected:
-
----
-
 # 🗂️ **Code File Wrapper**  
 
 <p align="center">
