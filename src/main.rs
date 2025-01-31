@@ -10,9 +10,11 @@ mod file_ops;
 use crate::cli::CliArgs;
 use crate::file_ops::write_folder_tags;
 use clap::Parser;
+use clipboard::{ClipboardContext, ClipboardProvider};
 use eframe::egui;
 use rfd::FileDialog;
 use std::collections::HashMap;
+use std::fs::read_to_string;
 use std::path::PathBuf;
 
 /// Main entry point for `code-file-wrapper`.
@@ -32,19 +34,16 @@ fn main() {
 
     // Parse command-line arguments
     let args = CliArgs::parse();
+    let folder: PathBuf;
 
-    // Determine folder path
-    let folder = if let Some(ref path) = args.path {
-        let p = PathBuf::from(path);
-        if !p.exists() {
+    if let Some(ref path) = args.path {
+        folder = PathBuf::from(path);
+        if !folder.exists() {
             eprintln!("Provided path does not exist. Exiting.");
             std::process::exit(1);
         }
-        p
     } else {
-        // Open a folder picker dialog if no path is provided
         let selected_dir = FileDialog::new().set_directory(".").pick_folder();
-
         let Some(dir) = selected_dir else {
             eprintln!("No directory selected. Exiting.");
             std::process::exit(0);
@@ -55,11 +54,9 @@ fn main() {
             std::process::exit(1);
         }
 
-        // Get mouse cursor position for initial window placement
         let cursor_position = get_cursor_position();
-
-        // Launch the mode selection GUI
-        let selected_mode = mode_selection_gui(modes.keys().cloned().collect(), cursor_position);
+        let (selected_mode, enable_clipboard_copy, additional_commands) =
+            mode_selection_gui(modes.keys().cloned().collect(), cursor_position);
         let Some(valid_exts) = selected_mode.and_then(|mode| modes.get(mode.as_str())) else {
             eprintln!("No mode selected. Exiting.");
             std::process::exit(0);
@@ -70,9 +67,15 @@ fn main() {
             std::process::exit(1);
         }
 
-        // Exit since work is done here
+        // Handle clipboard copy if enabled
+        if enable_clipboard_copy {
+            if let Err(e) = copy_to_clipboard("tags_output.txt", &additional_commands) {
+                eprintln!("Error copying to clipboard: {e}");
+            }
+        }
+
         std::process::exit(0);
-    };
+    }
 
     // Default behavior if path is provided
     if let Err(e) = write_folder_tags(
@@ -87,15 +90,40 @@ fn main() {
     std::process::exit(0);
 }
 
+/// Copies the contents of `tags_output.txt` and `additional_commands` to the clipboard.
+fn copy_to_clipboard(file_path: &str, additional_commands: &str) -> std::io::Result<()> {
+    let mut ctx: ClipboardContext = ClipboardProvider::new()
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::Other, "Clipboard error"))?;
+
+    let file_contents = read_to_string(file_path)?;
+    let final_content = format!("{}\n\n{}", file_contents, additional_commands);
+
+    ctx.set_contents(final_content).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to set clipboard contents",
+        )
+    })
+}
+
 /// Launches the mode selection GUI and returns the selected mode.
-fn mode_selection_gui(modes: Vec<&str>, initial_pos: Option<(f32, f32)>) -> Option<String> {
+fn mode_selection_gui(
+    modes: Vec<&str>,
+    initial_pos: Option<(f32, f32)>,
+) -> (Option<String>, bool, String) {
     let mut selected_mode: Option<String> = None;
+    let mut enable_clipboard_copy = false;
+    let mut additional_commands = String::new();
 
-    let app = ModeSelector::new(modes, &mut selected_mode);
+    let app = ModeSelector::new(
+        modes,
+        &mut selected_mode,
+        &mut enable_clipboard_copy,
+        &mut additional_commands,
+    );
 
-    // Set the initial position of the GUI window
+    // Set initial position of GUI window
     let mut native_options = eframe::NativeOptions::default();
-
     if let Some((x, y)) = initial_pos {
         native_options.viewport = native_options
             .viewport
@@ -110,21 +138,30 @@ fn mode_selection_gui(modes: Vec<&str>, initial_pos: Option<(f32, f32)>) -> Opti
         Box::new(|_cc| Ok(Box::new(app))),
     );
 
-    selected_mode
+    (selected_mode, enable_clipboard_copy, additional_commands)
 }
 
 /// State and behavior for the mode selection GUI.
 struct ModeSelector<'a> {
     modes: Vec<String>,
     selected_mode: &'a mut Option<String>,
+    enable_clipboard_copy: &'a mut bool,
+    additional_commands: &'a mut String,
 }
 
 impl<'a> ModeSelector<'a> {
     /// Creates a new ModeSelector with the given modes.
-    pub fn new(modes: Vec<&str>, selected_mode: &'a mut Option<String>) -> Self {
+    pub fn new(
+        modes: Vec<&str>,
+        selected_mode: &'a mut Option<String>,
+        enable_clipboard_copy: &'a mut bool,
+        additional_commands: &'a mut String,
+    ) -> Self {
         Self {
             modes: modes.into_iter().map(String::from).collect(),
             selected_mode,
+            enable_clipboard_copy,
+            additional_commands,
         }
     }
 }
@@ -143,12 +180,21 @@ impl eframe::App for ModeSelector<'_> {
                     for mode in &self.modes {
                         if ui.button(mode).clicked() {
                             *self.selected_mode = Some(mode.clone());
-                            // frame.close(); // Close the GUI
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
                         ui.end_row();
                     }
                 });
+
+            // Checkbox for enabling clipboard copy
+            ui.checkbox(
+                self.enable_clipboard_copy,
+                "Enable save to clipboard automatically",
+            );
+
+            // Large text input area for additional commands
+            ui.label("Additional Commands:");
+            ui.text_edit_multiline(self.additional_commands);
         });
     }
 }
