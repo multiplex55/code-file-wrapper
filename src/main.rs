@@ -10,7 +10,6 @@ mod utils;
 
 use crate::file_ops::{append_additional_commands, write_folder_tags};
 use crate::gui::ModeSelector;
-use crate::presets::get_presets;
 use crate::utils::{copy_to_clipboard, get_cursor_position};
 
 use eframe::egui;
@@ -93,7 +92,6 @@ fn mode_selection_gui(
     let mut additional_commands = String::new();
     let mut selected_dir: Option<PathBuf> = None;
     let mut preset_texts = Vec::new();
-    let presets = get_presets(); // Fetch preset commands dynamically
 
     // Retrieve cursor position if available
     let (x, y) = initial_pos.unwrap_or((100.0, 100.0)); // Default if position is unavailable
