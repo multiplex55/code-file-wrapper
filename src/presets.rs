@@ -13,7 +13,7 @@ pub struct PresetCommand {
 ///
 /// # Returns
 /// - A `Vec<PresetCommand>` containing predefined command presets.
-/// Each `PresetCommand` consists of a `name` (a short description) and `text` (detailed command content).
+///   Each `PresetCommand` consists of a `name` (a short description) and `text` (detailed command content).
 ///
 /// # Behavior
 /// - This function constructs and returns a vector of `PresetCommand` instances.
