@@ -13,8 +13,10 @@ use crate::gui::ModeSelector;
 use crate::utils::{copy_to_clipboard, get_cursor_position};
 
 use eframe::egui;
+use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::process::Command;
 
 /// The main entry point of the `code-file-wrapper` program.
 ///
@@ -103,8 +105,23 @@ fn main() {
         if let Err(e) = copy_to_clipboard("tags_output.txt") {
             eprintln!("❌ ERROR: Could not copy to clipboard: {}", e);
         }
-    }
+    } else {
+        let result = MessageDialog::new()
+            .set_title("Open Output File?")
+            .set_description("Would you like to open the generated tags_output.txt file?")
+            .set_buttons(MessageButtons::YesNo)
+            .set_level(MessageLevel::Info)
+            .show();
 
+        if result == MessageDialogResult::Yes {
+            if let Err(e) = std::process::Command::new("notepad")
+                .arg("tags_output.txt")
+                .spawn()
+            {
+                eprintln!("❌ ERROR: Failed to open tags_output.txt: {}", e);
+            }
+        }
+    }
     std::process::exit(0);
 }
 
