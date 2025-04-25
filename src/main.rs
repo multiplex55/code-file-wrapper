@@ -59,6 +59,7 @@ fn main() {
         ("JSON", vec!["json"]),
         ("XML", vec!["xml"]),
         ("C/CPP", vec!["c", "cpp", "h"]),
+        ("lua", vec!["lua"]),
     ]);
 
     let cursor_position = get_cursor_position();
