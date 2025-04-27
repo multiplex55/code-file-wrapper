@@ -194,7 +194,7 @@ impl eframe::App for ModeSelector<'_> {
                 ui.group(|ui| {
                     ui.label("Ignore Folders (one per line, case insensitive):");
                     egui::ScrollArea::vertical()
-                        .id_source("ignore_folders_scrollarea")
+                        .id_salt("ignore_folders_scrollarea")
                         .max_height(100.0)
                         .show(ui, |ui| {
                             ui.add(
@@ -211,7 +211,7 @@ impl eframe::App for ModeSelector<'_> {
             ui.group(|ui| {
                 ui.label("Additional Commands:");
                 egui::ScrollArea::both()
-                    .id_source("additional_commands_scrollarea")
+                    .id_salt("additional_commands_scrollarea")
                     .max_height(200.0)
                     .show(ui, |ui| {
                         ui.add(
