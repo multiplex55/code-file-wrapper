@@ -55,19 +55,21 @@ pub fn write_folder_tags(dir: &Path, valid_exts: &[&str], recursive: bool) -> st
     let mut output = File::create("tags_output.txt")?;
 
     if recursive {
-        write_folder_tags_recursive(dir, valid_exts, &mut output)?;
+        write_folder_tags_recursive(dir, dir, valid_exts, &mut output)?;
     } else {
         for entry in read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
 
             if path.is_file() && is_human_readable(&path, valid_exts) {
-                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    let mut contents = String::new();
-                    File::open(&path)?.read_to_string(&mut contents)?;
-                    writeln!(output, "<{}>", name)?;
-                    writeln!(output, "{}", contents)?;
-                    writeln!(output, "</{}>\n", name)?;
+                if let Ok(relative_path) = path.strip_prefix(dir) {
+                    if let Some(rel_str) = relative_path.to_str() {
+                        let mut contents = String::new();
+                        File::open(&path)?.read_to_string(&mut contents)?;
+                        writeln!(output, "<{}>", rel_str)?;
+                        writeln!(output, "{}", contents)?;
+                        writeln!(output, "</{}>\n", rel_str)?;
+                    }
                 }
             }
         }
@@ -183,6 +185,7 @@ pub fn append_additional_commands(
 }
 
 fn write_folder_tags_recursive(
+    root_dir: &Path,
     dir: &Path,
     valid_exts: &[&str],
     output: &mut File,
@@ -191,14 +194,16 @@ fn write_folder_tags_recursive(
         let entry = entry?;
         let path = entry.path();
         if path.is_dir() {
-            write_folder_tags_recursive(&path, valid_exts, output)?;
+            write_folder_tags_recursive(root_dir, &path, valid_exts, output)?;
         } else if path.is_file() && is_human_readable(&path, valid_exts) {
-            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                let mut contents = String::new();
-                File::open(&path)?.read_to_string(&mut contents)?;
-                writeln!(output, "<{}>", name)?;
-                writeln!(output, "{}", contents)?;
-                writeln!(output, "</{}>\n", name)?;
+            if let Ok(relative_path) = path.strip_prefix(root_dir) {
+                if let Some(rel_str) = relative_path.to_str() {
+                    let mut contents = String::new();
+                    File::open(&path)?.read_to_string(&mut contents)?;
+                    writeln!(output, "<{}>", rel_str)?;
+                    writeln!(output, "{}", contents)?;
+                    writeln!(output, "</{}>\n", rel_str)?;
+                }
             }
         }
     }
