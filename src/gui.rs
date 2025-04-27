@@ -21,6 +21,7 @@ pub struct ModeSelector<'a> {
     warning_message: String,
     presets: Vec<PresetCommand>,
     enable_recursive_search: &'a mut bool,
+    ignored_folders: &'a mut String,
 }
 
 impl<'a> ModeSelector<'a> {
@@ -33,6 +34,7 @@ impl<'a> ModeSelector<'a> {
         selected_dir: &'a mut Option<PathBuf>,
         preset_texts: &'a mut Vec<String>,
         enable_recursive_search: &'a mut bool,
+        ignored_folders: &'a mut String,
     ) -> Self {
         Self {
             modes: modes.into_iter().map(String::from).collect(),
@@ -45,11 +47,89 @@ impl<'a> ModeSelector<'a> {
             warning_message: String::new(),
             presets: get_presets(),
             enable_recursive_search,
+            ignored_folders,
         }
     }
 }
 
 impl eframe::App for ModeSelector<'_> {
+    /// Updates the graphical user interface (GUI) each frame, allowing users to interact with directory,
+    /// mode, and preset selections.
+    ///
+    /// # Parameters
+    /// - `ctx`: A reference to the `egui::Context`, representing the current GUI state and context.
+    /// - `_frame`: A mutable reference to the `eframe::Frame`, representing the window/frame state (unused).
+    ///
+    /// # Behavior
+    /// - Displays interactive widgets for:
+    ///   - Selecting a directory.
+    ///   - Selecting a file type (mode).
+    ///   - Enabling or disabling automatic clipboard copy.
+    ///   - Enabling or disabling recursive search.
+    ///   - Specifying folders to ignore during recursion.
+    ///   - Entering additional command text.
+    ///   - Selecting preset commands to be appended to output.
+    /// - Provides an `OK` button that validates selections and closes the GUI if inputs are valid.
+    /// - Displays a warning message in red text if required selections are missing.
+    /// - Updates internal shared mutable state (`self.selected_mode`, `self.selected_dir`, etc.) as the user interacts.
+    ///
+    /// # Layout Structure
+    /// 1. **Directory Selection Row**:
+    ///    - "Select Directory" button opens a folder picker dialog.
+    ///    - Displays selected directory path in a disabled text field.
+    ///
+    /// 2. **File Type (Mode) Selection**:
+    ///    - Presents a button for each available file type mode.
+    ///    - Highlights the selected mode with a green background.
+    ///
+    /// 3. **Clipboard Copy and Recursive Search Options**:
+    ///    - Checkboxes to enable clipboard copying and recursive folder search.
+    ///
+    /// 4. **Ignored Folders Entry** *(visible only if recursive search is enabled)*:
+    ///    - Multi-line text field allowing entry of folders to ignore (one per line).
+    ///
+    /// 5. **Additional Commands Input**:
+    ///    - Scrollable, resizable text box for arbitrary user commands.
+    ///
+    /// 6. **Preset Commands Section**:
+    ///    - Button for each preset command with a tooltip preview.
+    ///    - Selected presets are highlighted.
+    ///
+    /// 7. **Warning Messages**:
+    ///    - Displays a red warning if validation fails (e.g., missing directory or mode).
+    ///
+    /// 8. **OK Button**:
+    ///    - When clicked:
+    ///      - Validates that a directory and a mode have been selected.
+    ///      - If validation passes, selected preset texts are collected and appended.
+    ///      - Closes the GUI window via `ctx.send_viewport_cmd(egui::ViewportCommand::Close)`.
+    ///
+    /// # Error Handling
+    /// - No explicit error propagation; errors are indicated to the user via in-GUI warning messages.
+    /// - Folder selection failure simply leaves the selection unchanged (no crash).
+    ///
+    /// # Panics
+    /// - This function does not explicitly panic under normal circumstances.
+    /// - Underlying failures in GUI framework (eframe/egui) could cause unexpected panics, but are very unlikely.
+    ///
+    /// # Example
+    /// ```rust
+    /// fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    ///     egui::CentralPanel::default().show(ctx, |ui| {
+    ///         // Directory selection button and preview
+    ///         if ui.button("Select Directory").clicked() {
+    ///             // ...
+    ///         }
+    ///         // Additional UI elements...
+    ///     });
+    /// }
+    /// ```
+    ///
+    /// # Notes
+    /// - Folder names for ignore are treated as case-insensitive later in the processing stage.
+    /// - File mode selection tooltips show which extensions are handled by each mode.
+    /// - Visual styling uses explicit background color changes for selected items to aid usability.
+    /// - GUI position defaults near the cursor but is handled externally (`mode_selection_gui`).
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             // Directory Selection
@@ -108,16 +188,35 @@ impl eframe::App for ModeSelector<'_> {
                 "Enable recursive directory search",
             );
 
+            // Ignored Folders TextArea
+
+            if *self.enable_recursive_search {
+                ui.group(|ui| {
+                    ui.label("Ignore Folders (one per line, case insensitive):");
+                    egui::ScrollArea::vertical()
+                        .id_source("ignore_folders_scrollarea")
+                        .max_height(100.0)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(self.ignored_folders)
+                                    .desired_width(ui.available_width())
+                                    .desired_rows(4)
+                                    .clip_text(false),
+                            );
+                        });
+                });
+            }
+
             // Additional Commands Box
             ui.group(|ui| {
                 ui.label("Additional Commands:");
-
                 egui::ScrollArea::both()
-                    .max_height(200.0) // Prevents excessive height growth
+                    .id_source("additional_commands_scrollarea")
+                    .max_height(200.0)
                     .show(ui, |ui| {
                         ui.add(
                             egui::TextEdit::multiline(self.additional_commands)
-                                .desired_width(ui.available_width()) // Allow resizing in width
+                                .desired_width(ui.available_width())
                                 .desired_rows(5)
                                 .clip_text(false),
                         );

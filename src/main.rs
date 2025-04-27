@@ -73,6 +73,7 @@ fn main() {
         additional_commands,
         preset_texts,
         enable_recursive_search,
+        ignored_folders,
     ) = mode_selection_gui(mode_list, cursor_position);
 
     let Some(dir) = selected_dir else {
@@ -92,7 +93,13 @@ fn main() {
         std::process::exit(0);
     };
 
-    if let Err(e) = write_folder_tags(&dir, valid_exts, enable_recursive_search) {
+    let ignored_folders: Vec<String> = ignored_folders
+        .lines()
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if let Err(e) = write_folder_tags(&dir, valid_exts, enable_recursive_search, &ignored_folders) {
         eprintln!("❌ ERROR: Could not write folder tags: {}", e);
         std::process::exit(1);
     }
@@ -131,32 +138,57 @@ fn main() {
     std::process::exit(0);
 }
 
-/// - `Option<PathBuf>`: The directory selected by the user.
-/// - `Option<String>`: The file type mode selected by the user.
-/// - `bool`: A boolean indicating whether clipboard copy is enabled.
-/// - `String`: Additional commands entered by the user.
-/// - `Vec<String>`: A vector of preset command texts selected by the user.
+/// Launches a graphical user interface (GUI) that allows the user to select a directory, file type mode,
+/// and various additional options, returning the selections upon closing.
+///
+/// # Parameters
+/// - `modes`: A `Vec<&str>` listing available file type modes that the user can choose from (e.g., "Rust", "JSON").
+/// - `initial_pos`: An `Option<(f32, f32)>` specifying the initial screen coordinates (x, y) for the GUI window.
+///   - If `None`, the window will default to a position at (100.0, 100.0).
+///
+/// # Returns
+/// A tuple containing:
+/// - `Option<PathBuf>`: The path to the selected directory, if one was chosen.
+/// - `Option<String>`: The selected file type mode, if one was chosen.
+/// - `bool`: Whether the user enabled automatic clipboard copying.
+/// - `String`: Additional commands entered by the user (may be empty).
+/// - `Vec<String>`: A vector of preset texts selected by the user (may be empty).
+/// - `bool`: Whether recursive directory search was enabled.
+/// - `String`: Multiline string listing folder names to ignore (one per line, case insensitive).
 ///
 /// # Behavior
-/// - The GUI provides file type selection buttons dynamically sorted alphabetically.
-/// - The user can select a directory and file type for processing.
-/// - Additional commands and preset commands can be added to be included in the output file.
-/// - The GUI will be positioned at the cursor location if available, otherwise, a default position `(100.0, 100.0)` is used.
+/// - Instantiates a new `ModeSelector` struct, passing mutable references to shared state variables.
+/// - Configures `eframe::NativeOptions` for the GUI window:
+///   - Sets inner size constraints.
+///   - Applies minimum allowed window dimensions.
+///   - Positions the window based on `initial_pos`, if provided.
+/// - Launches the GUI via `eframe::run_native`.
+/// - Execution is blocked until the GUI window is closed.
+/// - Upon closure, the function returns the final state of all selection values.
+///
+/// # Error Handling
+/// - If `eframe::run_native` fails internally, the error is ignored (`let _ = ...`).
+///   - This is safe because the project expects the GUI to run in a normal user environment.
+/// - No runtime validation is done inside this function; validation is handled inside the `ModeSelector`'s `update` method.
 ///
 /// # Panics
-/// - This function does not explicitly panic but will terminate the application if the GUI encounters an unrecoverable error.
+/// - This function does not explicitly panic.
+/// - Panics may occur only if `eframe` itself encounters a fatal error, which is rare under normal conditions.
 ///
-/// # Example Usage
+/// # Example
 /// ```rust
-/// let modes = vec!["AHK", "Rust", "JSON"];
-/// let cursor_position = get_cursor_position();
-/// let (dir, mode, clipboard, commands, presets) = mode_selection_gui(modes, cursor_position);
+/// let modes = vec!["Rust", "JSON", "AHK"];
+/// let cursor_pos = get_cursor_position();
+///
+/// let (dir, mode, clipboard, additional_commands, presets, recursive, ignored_folders) =
+///     mode_selection_gui(modes, cursor_pos);
 /// ```
 ///
 /// # Notes
-/// - The GUI is implemented using `egui` and launched via `eframe::run_native`.
-/// - The function blocks execution until the user closes the GUI.
-/// - Selected options are returned for further processing in `main.rs`.
+/// - This function separates GUI concerns cleanly from the main program logic.
+/// - If no directory or mode is selected (due to GUI cancellation), returned values will reflect that via `None`.
+/// - The GUI fields are reset to empty/defaults before each new GUI launch.
+/// - This function should generally only be called once at program startup.
 fn mode_selection_gui(
     modes: Vec<&str>,
     initial_pos: Option<(f32, f32)>,
@@ -167,6 +199,7 @@ fn mode_selection_gui(
     String,
     Vec<String>,
     bool,
+    String,
 ) {
     let mut selected_mode: Option<String> = None;
     let mut enable_clipboard_copy = false;
@@ -174,6 +207,7 @@ fn mode_selection_gui(
     let mut selected_dir: Option<PathBuf> = None;
     let mut preset_texts = Vec::new();
     let mut enable_recursive_search = false;
+    let mut ignored_folders = String::new();
 
     // Retrieve cursor position if available
     let (x, y) = initial_pos.unwrap_or((100.0, 100.0)); // Default if position is unavailable
@@ -186,6 +220,7 @@ fn mode_selection_gui(
         &mut selected_dir,
         &mut preset_texts,
         &mut enable_recursive_search,
+        &mut ignored_folders,
     );
 
     let options = eframe::NativeOptions {
@@ -209,5 +244,6 @@ fn mode_selection_gui(
         additional_commands,
         preset_texts,
         enable_recursive_search,
+        ignored_folders,
     )
 }
