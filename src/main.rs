@@ -16,7 +16,6 @@ use eframe::egui;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::process::Command;
 
 /// The main entry point of the `code-file-wrapper` program.
 ///
@@ -67,8 +66,14 @@ fn main() {
     let mut mode_list: Vec<&str> = modes.keys().cloned().collect();
     mode_list.sort_unstable(); // Sort the modes alphabetically
 
-    let (selected_dir, selected_mode, enable_clipboard_copy, additional_commands, preset_texts) =
-        mode_selection_gui(mode_list, cursor_position);
+    let (
+        selected_dir,
+        selected_mode,
+        enable_clipboard_copy,
+        additional_commands,
+        preset_texts,
+        enable_recursive_search,
+    ) = mode_selection_gui(mode_list, cursor_position);
 
     let Some(dir) = selected_dir else {
         eprintln!("⚠️ No directory selected. Exiting.");
@@ -87,7 +92,7 @@ fn main() {
         std::process::exit(0);
     };
 
-    if let Err(e) = write_folder_tags(&dir, valid_exts) {
+    if let Err(e) = write_folder_tags(&dir, valid_exts, enable_recursive_search) {
         eprintln!("❌ ERROR: Could not write folder tags: {}", e);
         std::process::exit(1);
     }
@@ -155,12 +160,20 @@ fn main() {
 fn mode_selection_gui(
     modes: Vec<&str>,
     initial_pos: Option<(f32, f32)>,
-) -> (Option<PathBuf>, Option<String>, bool, String, Vec<String>) {
+) -> (
+    Option<PathBuf>,
+    Option<String>,
+    bool,
+    String,
+    Vec<String>,
+    bool,
+) {
     let mut selected_mode: Option<String> = None;
     let mut enable_clipboard_copy = false;
     let mut additional_commands = String::new();
     let mut selected_dir: Option<PathBuf> = None;
     let mut preset_texts = Vec::new();
+    let mut enable_recursive_search = false;
 
     // Retrieve cursor position if available
     let (x, y) = initial_pos.unwrap_or((100.0, 100.0)); // Default if position is unavailable
@@ -172,6 +185,7 @@ fn mode_selection_gui(
         &mut additional_commands,
         &mut selected_dir,
         &mut preset_texts,
+        &mut enable_recursive_search,
     );
 
     let options = eframe::NativeOptions {
@@ -194,5 +208,6 @@ fn mode_selection_gui(
         enable_clipboard_copy,
         additional_commands,
         preset_texts,
+        enable_recursive_search,
     )
 }

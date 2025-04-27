@@ -51,20 +51,24 @@ use std::path::Path;
 /// - The function overwrites `tags_output.txt` on each execution.
 /// - If a file does not contain valid UTF-8 content, reading may fail.
 /// - The appended instructions in the output file guide users on how to structure modifications.
-pub fn write_folder_tags(dir: &Path, valid_exts: &[&str]) -> std::io::Result<()> {
+pub fn write_folder_tags(dir: &Path, valid_exts: &[&str], recursive: bool) -> std::io::Result<()> {
     let mut output = File::create("tags_output.txt")?;
 
-    for entry in read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
+    if recursive {
+        write_folder_tags_recursive(dir, valid_exts, &mut output)?;
+    } else {
+        for entry in read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
 
-        if path.is_file() && is_human_readable(&path, valid_exts) {
-            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                let mut contents = String::new();
-                File::open(&path)?.read_to_string(&mut contents)?;
-                writeln!(output, "<{}>", name)?;
-                writeln!(output, "{}", contents)?;
-                writeln!(output, "</{}>\n", name)?;
+            if path.is_file() && is_human_readable(&path, valid_exts) {
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    let mut contents = String::new();
+                    File::open(&path)?.read_to_string(&mut contents)?;
+                    writeln!(output, "<{}>", name)?;
+                    writeln!(output, "{}", contents)?;
+                    writeln!(output, "</{}>\n", name)?;
+                }
             }
         }
     }
@@ -175,5 +179,28 @@ pub fn append_additional_commands(
     writeln!(file, "\n[Additional Commands]")?;
     writeln!(file, "{}\n", additional_commands)?;
 
+    Ok(())
+}
+
+fn write_folder_tags_recursive(
+    dir: &Path,
+    valid_exts: &[&str],
+    output: &mut File,
+) -> std::io::Result<()> {
+    for entry in read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            write_folder_tags_recursive(&path, valid_exts, output)?;
+        } else if path.is_file() && is_human_readable(&path, valid_exts) {
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                let mut contents = String::new();
+                File::open(&path)?.read_to_string(&mut contents)?;
+                writeln!(output, "<{}>", name)?;
+                writeln!(output, "{}", contents)?;
+                writeln!(output, "</{}>\n", name)?;
+            }
+        }
+    }
     Ok(())
 }

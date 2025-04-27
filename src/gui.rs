@@ -20,6 +20,7 @@ pub struct ModeSelector<'a> {
     selected_presets: HashSet<String>,
     warning_message: String,
     presets: Vec<PresetCommand>,
+    enable_recursive_search: &'a mut bool,
 }
 
 impl<'a> ModeSelector<'a> {
@@ -31,6 +32,7 @@ impl<'a> ModeSelector<'a> {
         additional_commands: &'a mut String,
         selected_dir: &'a mut Option<PathBuf>,
         preset_texts: &'a mut Vec<String>,
+        enable_recursive_search: &'a mut bool,
     ) -> Self {
         Self {
             modes: modes.into_iter().map(String::from).collect(),
@@ -41,7 +43,8 @@ impl<'a> ModeSelector<'a> {
             preset_texts,
             selected_presets: HashSet::new(),
             warning_message: String::new(),
-            presets: get_presets(), // Fetch preset commands dynamically
+            presets: get_presets(),
+            enable_recursive_search,
         }
     }
 }
@@ -97,6 +100,12 @@ impl eframe::App for ModeSelector<'_> {
             ui.checkbox(
                 self.enable_clipboard_copy,
                 "Enable save to clipboard automatically",
+            );
+
+            // Recursive Search Option
+            ui.checkbox(
+                self.enable_recursive_search,
+                "Enable recursive directory search",
             );
 
             // Additional Commands Box
