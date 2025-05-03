@@ -15,7 +15,7 @@
 ---
 
 ## 📌 Version  
-- **Latest Release:** `0.1.0`  
+- **Latest Release:** `1.0.0`  
 - **Author:** `Multiplex55`  
 - **License:** MIT  
 - **Platform:** 🖥 Windows Only  
