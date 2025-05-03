@@ -1,8 +1,9 @@
-//! # GUI Module
-//!
-//! This module manages the graphical user interface (GUI) using `egui`.
-//! It allows users to select a directory, file type, and preset commands.
+use crate::presets::save_presets;
 
+/// # GUI Module
+///
+/// This module manages the graphical user interface (GUI) using `egui`.
+/// It allows users to select a directory, file type, and preset commands.
 use crate::presets::{get_presets, PresetCommand};
 use eframe::egui;
 use rfd::FileDialog;
@@ -22,6 +23,7 @@ pub struct ModeSelector<'a> {
     presets: Vec<PresetCommand>,
     enable_recursive_search: &'a mut bool,
     ignored_folders: &'a mut String,
+    open_manage_presets: bool,
 }
 
 impl<'a> ModeSelector<'a> {
@@ -35,6 +37,7 @@ impl<'a> ModeSelector<'a> {
         preset_texts: &'a mut Vec<String>,
         enable_recursive_search: &'a mut bool,
         ignored_folders: &'a mut String,
+        open_manage_presets: bool,
     ) -> Self {
         Self {
             modes: modes.into_iter().map(String::from).collect(),
@@ -48,6 +51,7 @@ impl<'a> ModeSelector<'a> {
             presets: get_presets(),
             enable_recursive_search,
             ignored_folders,
+            open_manage_presets,
         }
     }
 }
@@ -132,7 +136,7 @@ impl eframe::App for ModeSelector<'_> {
     /// - GUI position defaults near the cursor but is handled externally (`mode_selection_gui`).
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            // Directory Selection
+            // Directory Picker
             ui.horizontal(|ui| {
                 if ui.button("Select Directory").clicked() {
                     if let Some(dir) = FileDialog::new().set_directory(".").pick_folder() {
@@ -149,135 +153,161 @@ impl eframe::App for ModeSelector<'_> {
                 }
             });
 
+            // Mode Selection
             ui.label("File Type Selection:");
             ui.horizontal_wrapped(|ui| {
                 for mode in &self.modes {
                     let is_selected = self.selected_mode.as_deref() == Some(mode);
-                    let default_bg = ui.visuals().widgets.inactive.bg_fill;
-                    let default_text = ui.visuals().widgets.inactive.fg_stroke.color;
-
-                    let (bg_color, text_color) = if is_selected {
+                    let (bg, fg) = if is_selected {
                         (egui::Color32::from_rgb(0, 120, 40), egui::Color32::WHITE)
                     } else {
-                        (default_bg, default_text)
+                        (
+                            ui.visuals().widgets.inactive.bg_fill,
+                            ui.visuals().widgets.inactive.fg_stroke.color,
+                        )
                     };
 
-                    let button = ui.add(
-                        egui::Button::new(egui::RichText::new(mode).color(text_color))
-                            .fill(bg_color),
-                    );
-
-                    if button.clicked() {
+                    let btn =
+                        ui.add(egui::Button::new(egui::RichText::new(mode).color(fg)).fill(bg));
+                    if btn.clicked() {
                         *self.selected_mode = Some(mode.clone());
                         self.warning_message.clear();
                     }
-
-                    button.on_hover_text(format!("Includes files with extensions: {:?}", mode));
                 }
             });
 
-            // Clipboard Save Option
             ui.checkbox(
                 self.enable_clipboard_copy,
                 "Enable save to clipboard automatically",
             );
-
-            // Recursive Search Option
             ui.checkbox(
                 self.enable_recursive_search,
                 "Enable recursive directory search",
             );
 
-            // Ignored Folders TextArea
-
             if *self.enable_recursive_search {
                 ui.group(|ui| {
                     ui.label("Ignore Folders (one per line, case insensitive):");
                     egui::ScrollArea::vertical()
-                        .id_salt("ignore_folders_scrollarea")
                         .max_height(100.0)
                         .show(ui, |ui| {
                             ui.add(
                                 egui::TextEdit::multiline(self.ignored_folders)
                                     .desired_width(ui.available_width())
-                                    .desired_rows(4)
-                                    .clip_text(false),
+                                    .desired_rows(4),
                             );
                         });
                 });
             }
 
-            // Additional Commands Box
+            // Additional commands
             ui.group(|ui| {
                 ui.label("Additional Commands:");
-                egui::ScrollArea::both()
-                    .id_salt("additional_commands_scrollarea")
-                    .max_height(200.0)
-                    .show(ui, |ui| {
-                        ui.add(
-                            egui::TextEdit::multiline(self.additional_commands)
-                                .desired_width(ui.available_width())
-                                .desired_rows(5)
-                                .clip_text(false),
-                        );
-                    });
+                egui::ScrollArea::both().max_height(200.0).show(ui, |ui| {
+                    ui.add(
+                        egui::TextEdit::multiline(self.additional_commands)
+                            .desired_width(ui.available_width())
+                            .desired_rows(5),
+                    );
+                });
             });
 
-            // Preset Command Selection with Tooltips
-            ui.label("Preset Commands:");
-            ui.horizontal_wrapped(|ui| {
-                for preset in &self.presets {
-                    let is_selected = self.selected_presets.contains(preset.name);
-                    let default_bg = ui.visuals().widgets.inactive.bg_fill;
-                    let default_text = ui.visuals().widgets.inactive.fg_stroke.color;
+            // Preset Command Dropdown
+            ui.horizontal(|ui| {
+                let selected_name_owned = self
+                    .selected_presets
+                    .iter()
+                    .next()
+                    .cloned()
+                    .unwrap_or_else(|| "None".to_string());
 
-                    let (bg_color, text_color) = if is_selected {
-                        (egui::Color32::from_rgb(0, 120, 40), egui::Color32::WHITE)
-                    } else {
-                        (default_bg, default_text)
-                    };
-
-                    let button = ui.add(
-                        egui::Button::new(egui::RichText::new(preset.name).color(text_color))
-                            .fill(bg_color),
-                    );
-
-                    if button.clicked() {
-                        if is_selected {
-                            self.selected_presets.remove(preset.name);
-                        } else {
-                            self.selected_presets.insert(preset.name.to_string());
+                let preset_names: Vec<&str> =
+                    self.presets.iter().map(|p| p.name.as_str()).collect();
+                egui::ComboBox::from_label("Preset Command")
+                    .selected_text(&selected_name_owned)
+                    .show_ui(ui, |ui| {
+                        for name in &preset_names {
+                            if ui
+                                .selectable_label(selected_name_owned == *name, *name)
+                                .clicked()
+                            {
+                                self.selected_presets.clear();
+                                self.selected_presets.insert(name.to_string());
+                            }
                         }
-                    }
+                    });
 
-                    button.on_hover_text(format!("Will add: \n\n\"{}\"", preset.text));
+                if ui.button("Manage Presets").clicked() {
+                    self.open_manage_presets = true;
                 }
             });
 
-            ui.separator();
+            if let Some(name) = self.selected_presets.iter().next() {
+                if let Some(preset) = self.presets.iter().find(|p| p.name == *name) {
+                    ui.label("Preview:");
+                    ui.label(&preset.text);
+                }
+            }
 
-            // Display Warning Message (if any)
+            // Warning Message
             if !self.warning_message.is_empty() {
                 ui.colored_label(egui::Color32::RED, &self.warning_message);
             }
 
-            // OK Button with Validation
+            // OK Button
             if ui.button("OK").clicked() {
                 if self.selected_dir.is_none() {
-                    self.warning_message =
-                        "⚠️ Please select a directory before proceeding!".to_string();
+                    self.warning_message = "⚠️ Please select a directory before proceeding!".into();
                 } else if self.selected_mode.is_none() {
-                    self.warning_message =
-                        "⚠️ Please select a file type before proceeding!".to_string();
+                    self.warning_message = "⚠️ Please select a file type before proceeding!".into();
                 } else {
-                    // Append selected presets when GUI closes
+                    // Push selected preset text
                     for preset in &self.presets {
-                        if self.selected_presets.contains(preset.name) {
-                            self.preset_texts.push(preset.text.to_string());
+                        if self.selected_presets.contains(&preset.name) {
+                            self.preset_texts.push(preset.text.clone());
                         }
                     }
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
+            }
+
+            // Preset Manager Window
+            if self.open_manage_presets {
+                egui::Window::new("Preset Manager")
+                    .open(&mut self.open_manage_presets)
+                    .show(ctx, |ui| {
+                        let mut to_delete: Option<usize> = None;
+
+                        for (i, preset) in self.presets.iter_mut().enumerate() {
+                            ui.group(|ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label("Name:");
+                                    ui.text_edit_singleline(&mut preset.name);
+                                    if ui.button("Delete").clicked() {
+                                        to_delete = Some(i);
+                                    }
+                                });
+                                ui.label("Text:");
+                                ui.add(egui::TextEdit::multiline(&mut preset.text).desired_rows(4));
+                            });
+                            ui.separator();
+                        }
+
+                        if let Some(i) = to_delete {
+                            self.presets.remove(i);
+                        }
+
+                        if ui.button("Add New Preset").clicked() {
+                            self.presets.push(PresetCommand {
+                                name: "New Preset".to_string(),
+                                text: String::new(),
+                            });
+                        }
+
+                        if ui.button("Save Changes").clicked() {
+                            save_presets(&self.presets);
+                        }
+                    });
             }
         });
     }

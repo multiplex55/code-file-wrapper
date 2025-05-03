@@ -221,6 +221,7 @@ fn mode_selection_gui(
         &mut preset_texts,
         &mut enable_recursive_search,
         &mut ignored_folders,
+        false,
     );
 
     let options = eframe::NativeOptions {
