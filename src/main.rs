@@ -104,13 +104,26 @@ fn main() {
         std::process::exit(1);
     }
 
-    if let Err(e) = append_additional_commands("tags_output.txt", &additional_commands) {
-        eprintln!("❌ ERROR: Could not append additional commands: {}", e);
+    let mut combined_additional = String::new();
+
+    for preset_text in &preset_texts {
+        combined_additional.push('\n');
+        combined_additional.push_str(preset_text.trim());
+        combined_additional.push('\n');
     }
 
-    for preset_text in preset_texts {
-        if let Err(e) = append_additional_commands("tags_output.txt", &preset_text) {
-            eprintln!("❌ ERROR: Could not append preset text: {}", e);
+    if !additional_commands.trim().is_empty() {
+        combined_additional.push('\n');
+        combined_additional.push_str(additional_commands.trim());
+        combined_additional.push('\n');
+    }
+
+    if !combined_additional.trim().is_empty() {
+        if let Err(e) = append_additional_commands("tags_output.txt", &combined_additional) {
+            eprintln!(
+                "❌ ERROR: Could not append combined additional commands: {}",
+                e
+            );
         }
     }
 

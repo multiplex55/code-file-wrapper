@@ -1,4 +1,4 @@
-use crate::presets::{load_presets, save_presets};
+use crate::presets::save_presets;
 
 /// # GUI Module
 ///
@@ -24,8 +24,8 @@ pub struct ModeSelector<'a> {
     enable_recursive_search: &'a mut bool,
     ignored_folders: &'a mut String,
     open_manage_presets: bool,
-
     open_preset_index: Option<usize>,
+    success_message: Option<(String, std::time::Instant)>,
 }
 
 impl<'a> ModeSelector<'a> {
@@ -50,11 +50,12 @@ impl<'a> ModeSelector<'a> {
             preset_texts,
             selected_presets: HashSet::new(),
             warning_message: String::new(),
-            presets: load_presets(),
+            presets: get_presets(),
             enable_recursive_search,
             ignored_folders,
             open_manage_presets,
             open_preset_index: None,
+            success_message: None,
         }
     }
 }
@@ -192,6 +193,7 @@ impl eframe::App for ModeSelector<'_> {
                 ui.group(|ui| {
                     ui.label("Ignore Folders (one per line, case insensitive):");
                     egui::ScrollArea::vertical()
+                        .id_salt("ignored_folders_scroll")
                         .max_height(100.0)
                         .show(ui, |ui| {
                             ui.add(
@@ -206,13 +208,16 @@ impl eframe::App for ModeSelector<'_> {
             // Additional commands
             ui.group(|ui| {
                 ui.label("Additional Commands:");
-                egui::ScrollArea::both().max_height(200.0).show(ui, |ui| {
-                    ui.add(
-                        egui::TextEdit::multiline(self.additional_commands)
-                            .desired_width(ui.available_width())
-                            .desired_rows(5),
-                    );
-                });
+                egui::ScrollArea::both()
+                    .max_height(200.0)
+                    .id_salt("Additional_commands_scroll")
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::TextEdit::multiline(self.additional_commands)
+                                .desired_width(ui.available_width())
+                                .desired_rows(5),
+                        );
+                    });
             });
 
             // Preset Command Dropdown
@@ -248,7 +253,16 @@ impl eframe::App for ModeSelector<'_> {
             if let Some(name) = self.selected_presets.iter().next() {
                 if let Some(preset) = self.presets.iter().find(|p| p.name == *name) {
                     ui.label("Preview:");
-                    ui.label(&preset.text);
+                    egui::ScrollArea::vertical()
+                        .max_height(100.0)
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(&mut preset.text.clone())
+                                    .desired_width(ui.available_width())
+                                    .desired_rows(4)
+                                    .interactive(false),
+                            );
+                        });
                 }
             }
 
@@ -276,6 +290,22 @@ impl eframe::App for ModeSelector<'_> {
 
             // Preset Manager Window
             if self.open_manage_presets {
+                if let Some((message, timestamp)) = &self.success_message {
+                    if timestamp.elapsed().as_secs_f32() < 3.0 {
+                        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+                        egui::Window::new("✔ Presets Saved")
+                            .anchor(egui::Align2::LEFT_TOP, [10.0, 10.0])
+                            .resizable(false)
+                            .collapsible(false)
+                            .show(ctx, |ui| {
+                                ui.label(
+                                    egui::RichText::new(message).color(egui::Color32::LIGHT_GREEN),
+                                );
+                            });
+                    } else {
+                        self.success_message = None;
+                    }
+                }
                 egui::Window::new("Preset Manager")
                     .collapsible(false)
                     .open(&mut self.open_manage_presets)
@@ -284,7 +314,7 @@ impl eframe::App for ModeSelector<'_> {
 
                         for (i, preset) in self.presets.iter_mut().enumerate() {
                             let is_open = self.open_preset_index == Some(i);
-                            let header_label = format!("▶ {}", preset.name);
+                            let header_label = &preset.name;
 
                             let response = egui::CollapsingHeader::new(header_label)
                                 .id_salt(format!("preset_{}", i))
@@ -338,8 +368,21 @@ impl eframe::App for ModeSelector<'_> {
 
                         if ui.button("Save Changes").clicked() {
                             save_presets(&self.presets);
+                            self.success_message = Some((
+                                "✅ Presets saved successfully.".into(),
+                                std::time::Instant::now(),
+                            ));
                         }
                     });
+            }
+
+            if let Some((message, timestamp)) = &self.success_message {
+                if timestamp.elapsed().as_secs_f32() < 3.0 {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(100));
+                    ui.label(egui::RichText::new(message).color(egui::Color32::LIGHT_GREEN));
+                } else {
+                    self.success_message = None;
+                }
             }
         });
     }

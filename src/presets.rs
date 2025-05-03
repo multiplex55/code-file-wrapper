@@ -49,10 +49,14 @@ pub struct PresetCommand {
 /// - The content of `text` can be multiline, allowing for detailed instructions.
 /// - The function is useful for populating UI elements or handling predefined automation tasks.
 pub fn get_presets() -> Vec<PresetCommand> {
-    vec![
-        PresetCommand {
-            name: "Create Function Documentation".to_string(),
-            text: r#"for each function, create very detailed documentation for that function, only respond with a single function and even still only respond with the documentation  and not the contents of the function itself. After providing the documentation, prompt for the next function.
+    if Path::new(PRESET_FILE).exists() {
+        let data = fs::read_to_string(PRESET_FILE).unwrap_or_default();
+        serde_json::from_str(&data).unwrap_or_default()
+    } else {
+        let default_presets = vec![
+            PresetCommand {
+                name: "Create Function Documentation".to_string(),
+                text: r#"for each function, create very detailed documentation for that function, only respond with a single function and even still only respond with the documentation  and not the contents of the function itself. After providing the documentation, prompt for the next function.
 
 provide information such as panics, parameters, all the interesting stuff about that function
 
@@ -62,28 +66,21 @@ prompt with the name of the function, do not respond with the code body of the f
 start with the main function
 
 use "///" for the function blocks"#.to_string(),
-        },
-        PresetCommand {
-            name: "Create Readme".to_string(),
-            text: r#"I want you to update the readme.md file. I want this readme to be the most fancy readme possible with as many fancy emojis, information, examples, and other interesting things.
+            },
+            PresetCommand {
+                name: "Create Readme".to_string(),
+                text: r#"I want you to update the readme.md file. I want this readme to be the most fancy readme possible with as many fancy emojis, information, examples, and other interesting things.
 any sort of flowcharts, sequence diagrams, or other things that would look really good on a public facing github page are welcome
 "#.to_string(),
-        },
-        PresetCommand { name: "Button 3".to_string(), text: "tbd".to_string() },
-        PresetCommand { name: "Button 4".to_string(), text: "tbd".to_string() },
-        PresetCommand { name: "Button 5".to_string(), text: "tbd".to_string() },
-    ]
-}
+            },
+            PresetCommand { name: "Button 3".to_string(), text: "tbd".to_string() },
+            PresetCommand { name: "Button 4".to_string(), text: "tbd".to_string() },
+            PresetCommand { name: "Button 5".to_string(), text: "tbd".to_string() },
+        ];
 
-pub fn load_presets() -> Vec<PresetCommand> {
-    if Path::new(PRESET_FILE).exists() {
-        let data = fs::read_to_string(PRESET_FILE).unwrap_or_default();
-        serde_json::from_str(&data).unwrap_or_default()
-    } else {
-        vec![PresetCommand {
-            name: "Create Function Documentation".to_string(),
-            text: "...".to_string(),
-        }]
+        // Save them immediately
+        save_presets(&default_presets);
+        default_presets
     }
 }
 

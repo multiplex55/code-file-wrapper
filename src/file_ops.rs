@@ -89,10 +89,11 @@ pub fn write_folder_tags(
 
     // Append instructional text
     writeln!(output, "* The above is the current state of my project.")?;
-    writeln!(output, "* Provide context above and below code changes.")?;
+    writeln!(output, "* Each node above is an XML-wrapped code snippet using relative Windows-style file path tags.")?;
+    writeln!(output, "* Provide context above and below code changes to be explicit on where any change should occur.")?;
     writeln!(
         output,
-        "* Be extremely explicit with where to make changes."
+        "* Under text under [Additional Commands] should be read very carefully and followed absolutly"
     )?;
 
     Ok(())
