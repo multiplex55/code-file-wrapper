@@ -21,6 +21,7 @@
 //! # Output
 //! - Generates or updates `tags_output.txt`.
 
+#![windows_subsystem = "windows"]
 mod file_ops;
 mod gui;
 mod presets;
@@ -80,6 +81,7 @@ fn main() {
         ("XML", vec!["xml"]),
         ("C/CPP", vec!["c", "cpp", "h"]),
         ("lua", vec!["lua"]),
+        ("js", vec!["js"]),
     ]);
 
     let cursor_position = get_cursor_position();
