@@ -1,7 +1,25 @@
 //! # Main Entry Point
 //!
-//! This is the main executable for the `code-file-wrapper` program.
-//! It handles command-line argument parsing, GUI interaction, and file operations.
+//! Coordinates program execution, launching the GUI and processing user-selected files.
+//!
+//! # Responsibilities
+//! - Starts the GUI and gathers user input.
+//! - Validates directory and mode selections.
+//! - Initiates file reading, filtering, and output generation.
+//! - Optionally copies the final result to the clipboard or opens it in Notepad.
+//!
+//! # Key Functions
+//! - [`main`]: The primary entry point. Launches the app, orchestrates all major steps.
+//! - [`mode_selection_gui`]: Wrapper that runs the GUI and returns user selections.
+//!
+//! # Dependencies
+//! - Relies on `file_ops` for tag generation.
+//! - Relies on `gui` for user input.
+//! - Relies on `utils` for clipboard and cursor behavior.
+//! - Relies on `presets` for saved preset data.
+//!
+//! # Output
+//! - Generates or updates `tags_output.txt`.
 
 mod file_ops;
 mod gui;
@@ -17,40 +35,43 @@ use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-/// The main entry point of the `code-file-wrapper` program.
+/// The main entry point of the `code-file-wrapper` application.
 ///
 /// # Overview
-/// This function initializes the program, retrieves user selections via the GUI,
-/// processes selected files based on their extensions, and writes the formatted output
-/// to `tags_output.txt`. Additionally, it can copy the output to the clipboard if
-/// requested by the user.
+/// This function initializes and orchestrates the core application logic,
+/// including GUI interaction, directory traversal, file filtering, output generation,
+/// and optional clipboard copying or user prompt to open the result.
 ///
-/// # Functionality
-/// - Retrieves the cursor position to open the GUI at the cursor's location.
-/// - Displays a GUI allowing the user to select:
-///   - A directory containing the files.
-///   - A mode corresponding to file extensions.
-///   - Whether to copy the output to the clipboard.
-///   - Additional commands to append to the output.
-/// - Reads and filters files from the selected directory based on the selected mode.
-/// - Writes the tagged file contents to `tags_output.txt`.
-/// - Appends additional commands and preset texts if selected.
-/// - Optionally copies the output to the clipboard.
+/// # Behavior
+/// - Launches a GUI to gather user input for:
+///   - Target directory
+///   - Desired file type/mode
+///   - Optional recursive search toggle
+///   - Preset and custom command texts
+///   - Clipboard copy option
+/// - Based on the selected file mode, filters for specific file extensions.
+/// - Traverses the selected directory, optionally recursively.
+/// - Writes file contents to a `tags_output.txt` file wrapped in XML-style tags.
+/// - Appends preset commands and user-provided instructions if any.
+/// - Copies the output to clipboard or optionally opens it in Notepad.
 ///
 /// # Panics
-/// - This function will terminate the process (`std::process::exit(1)`) if:
-///   - No directory is selected.
-///   - The selected path is not a valid directory.
-///   - Writing to `tags_output.txt` fails.
+/// - If the selected directory is missing or invalid, the program will terminate via `std::process::exit(1)`.
+/// - Similarly, failure to write to `tags_output.txt` also causes an immediate process exit.
 ///
 /// # Errors
-/// - If appending additional commands or copying to the clipboard fails, an error message is printed to `stderr`,
-///   but the program will continue execution.
+/// - Warnings and recoverable errors (e.g., failure to copy to clipboard or open Notepad)
+///   are printed to `stderr`, but do not crash the application.
 ///
 /// # Side Effects
-/// - Creates `tags_output.txt` in the current working directory.
-/// - Opens a graphical user interface for mode selection.
-/// - Can modify the system clipboard contents.
+/// - Creates or overwrites `tags_output.txt` in the working directory.
+/// - May update the clipboard (on Windows).
+/// - Opens a GUI using the `eframe` crate and optionally spawns `notepad.exe`.
+///
+/// # Notes
+/// - The user is required to make both a directory and file mode selection before proceeding.
+/// - Folder ignore logic is handled case-insensitively.
+/// - All user-facing dialogs are handled through the `rfd` crate.
 fn main() {
     let modes: HashMap<&str, Vec<&str>> = HashMap::from([
         ("AHK", vec!["ahk"]),
@@ -151,57 +172,55 @@ fn main() {
     std::process::exit(0);
 }
 
-/// Launches a graphical user interface (GUI) that allows the user to select a directory, file type mode,
-/// and various additional options, returning the selections upon closing.
+/// Launches a graphical user interface that allows the user to select a directory, file type mode,
+/// and various configuration options for processing files.
 ///
 /// # Parameters
-/// - `modes`: A `Vec<&str>` listing available file type modes that the user can choose from (e.g., "Rust", "JSON").
-/// - `initial_pos`: An `Option<(f32, f32)>` specifying the initial screen coordinates (x, y) for the GUI window.
-///   - If `None`, the window will default to a position at (100.0, 100.0).
+/// - `modes`: A `Vec<&str>` containing the list of selectable file type modes (e.g., `"Rust"`, `"JSON"`).
+/// - `initial_pos`: An `Option<(f32, f32)>` specifying the screen coordinates to position the GUI window near the cursor.
+///   - If `None`, defaults to `(100.0, 100.0)` on screen.
 ///
 /// # Returns
 /// A tuple containing:
-/// - `Option<PathBuf>`: The path to the selected directory, if one was chosen.
-/// - `Option<String>`: The selected file type mode, if one was chosen.
-/// - `bool`: Whether the user enabled automatic clipboard copying.
-/// - `String`: Additional commands entered by the user (may be empty).
-/// - `Vec<String>`: A vector of preset texts selected by the user (may be empty).
-/// - `bool`: Whether recursive directory search was enabled.
-/// - `String`: Multiline string listing folder names to ignore (one per line, case insensitive).
+/// - `Option<PathBuf>`: The selected directory (or `None` if canceled).
+/// - `Option<String>`: The selected file type mode (or `None` if canceled).
+/// - `bool`: Whether to automatically copy the output to the clipboard.
+/// - `String`: Additional command text entered by the user.
+/// - `Vec<String>`: List of preset texts selected or composed during the session.
+/// - `bool`: Whether recursive directory scanning is enabled.
+/// - `String`: Multiline text representing folders to ignore (one per line).
 ///
 /// # Behavior
-/// - Instantiates a new `ModeSelector` struct, passing mutable references to shared state variables.
-/// - Configures `eframe::NativeOptions` for the GUI window:
-///   - Sets inner size constraints.
-///   - Applies minimum allowed window dimensions.
-///   - Positions the window based on `initial_pos`, if provided.
-/// - Launches the GUI via `eframe::run_native`.
-/// - Execution is blocked until the GUI window is closed.
-/// - Upon closure, the function returns the final state of all selection values.
-///
-/// # Error Handling
-/// - If `eframe::run_native` fails internally, the error is ignored (`let _ = ...`).
-///   - This is safe because the project expects the GUI to run in a normal user environment.
-/// - No runtime validation is done inside this function; validation is handled inside the `ModeSelector`'s `update` method.
+/// - Constructs a `ModeSelector` instance, passing mutable references to shared state variables.
+/// - Configures GUI options using `eframe::NativeOptions`, including size, minimum bounds, and screen position.
+/// - Launches a blocking GUI session with `eframe::run_native`, which continues until the user presses the `OK` button or closes the window.
+/// - Once the GUI closes, the final state is returned to the caller.
 ///
 /// # Panics
-/// - This function does not explicitly panic.
-/// - Panics may occur only if `eframe` itself encounters a fatal error, which is rare under normal conditions.
+/// - This function does not panic under expected conditions.
+/// - If `eframe::run_native` fails internally (e.g., failed window creation), the error is ignored and defaults are returned.
+///
+/// # Side Effects
+/// - Opens a native GUI window using `egui`.
+/// - Collects user input and stores it in memory (shared mutable fields passed into `ModeSelector`).
+///
+/// # Notes
+/// - No runtime validation is performed inside this function; it is handled in `ModeSelector::update()`.
+/// - If the user closes the GUI without making a selection, `None` values will be returned for mode and directory.
+/// - This function should be called early in `main()` before any file processing occurs.
 ///
 /// # Example
 /// ```rust
 /// let modes = vec!["Rust", "JSON", "AHK"];
 /// let cursor_pos = get_cursor_position();
 ///
-/// let (dir, mode, clipboard, additional_commands, presets, recursive, ignored_folders) =
+/// let (dir, mode, clipboard, additional, presets, recursive, ignored) =
 ///     mode_selection_gui(modes, cursor_pos);
-/// ```
 ///
-/// # Notes
-/// - This function separates GUI concerns cleanly from the main program logic.
-/// - If no directory or mode is selected (due to GUI cancellation), returned values will reflect that via `None`.
-/// - The GUI fields are reset to empty/defaults before each new GUI launch.
-/// - This function should generally only be called once at program startup.
+/// if let Some(path) = dir {
+///     println!("Selected directory: {:?}", path);
+/// }
+/// ```
 fn mode_selection_gui(
     modes: Vec<&str>,
     initial_pos: Option<(f32, f32)>,

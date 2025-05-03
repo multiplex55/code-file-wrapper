@@ -1,16 +1,66 @@
-use crate::presets::save_presets;
+//! # GUI Module
+//!
+//! Provides the graphical interface for selecting directories, file types, and preset commands.
+//!
+//! # Purpose
+//! - Allows users to configure how the application processes files.
+//! - Enables selection of presets, additional instructions, and clipboard behavior.
+//! - Offers management tools to create, edit, and delete command presets.
+//!
+//! # Key Components
+//! - [`ModeSelector`]: The main GUI application state, managing all interactive elements.
+//! - `eframe::egui`: Used to build and render the interface.
+//! - `rfd`: Used for native folder selection dialogs.
+//!
+//! # Features
+//! - Directory and file mode selection.
+//! - Recursive search toggle with folder ignore input.
+//! - Additional commands input (multiline).
+//! - Preset command dropdown with editing capabilities.
+//! - Warning and success messages inline in the UI.
+//!
+//! # Behavior
+//! - Uses `eframe::run_native` to block execution until the user completes the selection.
+//! - Updates shared mutable state passed by reference from `main.rs`.
 
-/// # GUI Module
-///
-/// This module manages the graphical user interface (GUI) using `egui`.
-/// It allows users to select a directory, file type, and preset commands.
+use crate::presets::save_presets;
 use crate::presets::{get_presets, PresetCommand};
 use eframe::egui;
 use rfd::FileDialog;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-/// GUI State Management
+/// Holds the interactive state and logic for the main GUI window.
+///
+/// # Purpose
+/// - Centralizes all state used during the GUI session.
+/// - Tracks user selections like mode, directory, clipboard settings, ignored folders, and presets.
+/// - Manages the lifecycle and interactions of the preset manager popup.
+///
+/// # Fields
+/// - `modes`: All available file type modes (e.g., Rust, JSON).
+/// - `selected_mode`: Currently selected file type mode (shared mutable).
+/// - `enable_clipboard_copy`: Whether the clipboard should be updated after output is generated.
+/// - `additional_commands`: Multiline string entered by the user to append to the output.
+/// - `selected_dir`: The selected folder path for file processing.
+/// - `preset_texts`: Output accumulator for selected presets (shared mutable).
+/// - `selected_presets`: Set of selected preset names (limited to 1 in the current UI).
+/// - `warning_message`: Message shown in red if validation fails (e.g., no directory selected).
+/// - `presets`: Full list of loaded/editable `PresetCommand` objects.
+/// - `enable_recursive_search`: Whether to search directories recursively (shared mutable).
+/// - `ignored_folders`: Textbox input for folder names to skip (shared mutable).
+/// - `open_manage_presets`: Whether the preset manager window is currently open.
+/// - `open_preset_index`: Index of the currently expanded preset panel (if any).
+/// - `success_message`: Temporary success toast used when saving presets.
+///
+/// # Behavior
+/// - Passed to `eframe::run_native` and rendered by the `update` method every frame.
+/// - Handles preset selection, folder picking, validation, and final confirmation.
+/// - Owns no internal lifetimes—uses shared mutable references for outward-facing state.
+///
+/// # Notes
+/// - GUI layout and interactivity are driven entirely from the `update()` implementation.
+/// - Not intended to be reused or retained beyond a single GUI session.
 pub struct ModeSelector<'a> {
     modes: Vec<String>,
     selected_mode: &'a mut Option<String>,
@@ -61,83 +111,77 @@ impl<'a> ModeSelector<'a> {
 }
 
 impl eframe::App for ModeSelector<'_> {
-    /// Updates the graphical user interface (GUI) each frame, allowing users to interact with directory,
-    /// mode, and preset selections.
+    /// Handles rendering and user interaction for the GUI window each frame.
     ///
     /// # Parameters
-    /// - `ctx`: A reference to the `egui::Context`, representing the current GUI state and context.
-    /// - `_frame`: A mutable reference to the `eframe::Frame`, representing the window/frame state (unused).
+    /// - `ctx`: The `egui::Context` used to render UI elements and issue commands.
+    /// - `_frame`: The `eframe::Frame` which holds metadata about the current application window (not used directly).
     ///
     /// # Behavior
-    /// - Displays interactive widgets for:
-    ///   - Selecting a directory.
-    ///   - Selecting a file type (mode).
-    ///   - Enabling or disabling automatic clipboard copy.
-    ///   - Enabling or disabling recursive search.
-    ///   - Specifying folders to ignore during recursion.
-    ///   - Entering additional command text.
-    ///   - Selecting preset commands to be appended to output.
-    /// - Provides an `OK` button that validates selections and closes the GUI if inputs are valid.
-    /// - Displays a warning message in red text if required selections are missing.
-    /// - Updates internal shared mutable state (`self.selected_mode`, `self.selected_dir`, etc.) as the user interacts.
+    /// - Builds a multi-section user interface inside a central panel.
+    /// - Allows the user to:
+    ///   - Select a target directory via a native folder picker.
+    ///   - Choose a file type mode (e.g., Rust, JSON).
+    ///   - Enable clipboard copy and recursive search options.
+    ///   - Input folder names to ignore during recursion.
+    ///   - Input additional command text.
+    ///   - Select or manage command presets.
+    ///   - Confirm their selections via an “OK” button.
     ///
-    /// # Layout Structure
-    /// 1. **Directory Selection Row**:
-    ///    - "Select Directory" button opens a folder picker dialog.
-    ///    - Displays selected directory path in a disabled text field.
+    /// # UI Layout Summary
+    /// 1. **Directory Picker Row**
+    ///    - Button: “Select Directory” opens a folder picker.
+    ///    - Displays the selected folder path in a read-only text box.
+    /// 2. **File Type Mode Selection**
+    ///    - Buttons for each mode with visual highlighting when selected.
+    /// 3. **Options**
+    ///    - Checkboxes for:
+    ///      - Enabling clipboard copying.
+    ///      - Enabling recursive directory search.
+    ///    - If recursion is enabled:
+    ///      - Multiline text box to enter ignored folders (one per line, case-insensitive).
+    /// 4. **Additional Commands Input**
+    ///    - Resizable multiline text area for arbitrary user instructions.
+    /// 5. **Preset Commands**
+    ///    - Dropdown for selecting one preset (with preview).
+    ///    - Button to open preset manager for editing/adding/removing presets.
+    /// 6. **Preset Manager Modal (if open)**
+    ///    - Editable collapsible sections for each preset.
+    ///    - Buttons to delete, add, and save presets.
+    /// 7. **Warnings and Feedback**
+    ///    - Displays a red warning if required selections are missing.
+    ///    - Displays a green success message briefly after saving presets.
+    /// 8. **Confirmation**
+    ///    - “OK” button validates inputs and, if valid, closes the window with selections saved into shared state.
     ///
-    /// 2. **File Type (Mode) Selection**:
-    ///    - Presents a button for each available file type mode.
-    ///    - Highlights the selected mode with a green background.
-    ///
-    /// 3. **Clipboard Copy and Recursive Search Options**:
-    ///    - Checkboxes to enable clipboard copying and recursive folder search.
-    ///
-    /// 4. **Ignored Folders Entry** *(visible only if recursive search is enabled)*:
-    ///    - Multi-line text field allowing entry of folders to ignore (one per line).
-    ///
-    /// 5. **Additional Commands Input**:
-    ///    - Scrollable, resizable text box for arbitrary user commands.
-    ///
-    /// 6. **Preset Commands Section**:
-    ///    - Button for each preset command with a tooltip preview.
-    ///    - Selected presets are highlighted.
-    ///
-    /// 7. **Warning Messages**:
-    ///    - Displays a red warning if validation fails (e.g., missing directory or mode).
-    ///
-    /// 8. **OK Button**:
-    ///    - When clicked:
-    ///      - Validates that a directory and a mode have been selected.
-    ///      - If validation passes, selected preset texts are collected and appended.
-    ///      - Closes the GUI window via `ctx.send_viewport_cmd(egui::ViewportCommand::Close)`.
-    ///
-    /// # Error Handling
-    /// - No explicit error propagation; errors are indicated to the user via in-GUI warning messages.
-    /// - Folder selection failure simply leaves the selection unchanged (no crash).
+    /// # State Updates
+    /// - Updates the following shared mutable state passed via the constructor:
+    ///   - `selected_dir`
+    ///   - `selected_mode`
+    ///   - `preset_texts`
+    ///   - `additional_commands`
+    ///   - `enable_clipboard_copy`
+    ///   - `enable_recursive_search`
+    ///   - `ignored_folders`
     ///
     /// # Panics
-    /// - This function does not explicitly panic under normal circumstances.
-    /// - Underlying failures in GUI framework (eframe/egui) could cause unexpected panics, but are very unlikely.
+    /// - This function does not panic.
+    /// - All I/O and GUI logic is guarded and safely ignores failure (e.g., folder selection can fail silently).
+    ///
+    /// # Notes
+    /// - The GUI closes via `ctx.send_viewport_cmd(egui::ViewportCommand::Close)` once all required inputs are provided.
+    /// - Preset editing and saving are fully managed in the same GUI session without restarting.
+    /// - State is preserved throughout the session but not across restarts (unless persisted in `presets.json`).
     ///
     /// # Example
     /// ```rust
     /// fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
     ///     egui::CentralPanel::default().show(ctx, |ui| {
-    ///         // Directory selection button and preview
-    ///         if ui.button("Select Directory").clicked() {
-    ///             // ...
-    ///         }
-    ///         // Additional UI elements...
+    ///         ui.label("Hello GUI!");
+    ///         // All layout and logic are handled here...
     ///     });
     /// }
     /// ```
-    ///
-    /// # Notes
-    /// - Folder names for ignore are treated as case-insensitive later in the processing stage.
-    /// - File mode selection tooltips show which extensions are handled by each mode.
-    /// - Visual styling uses explicit background color changes for selected items to aid usability.
-    /// - GUI position defaults near the cursor but is handled externally (`mode_selection_gui`).
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             // Directory Picker

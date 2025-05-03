@@ -1,57 +1,63 @@
 //! # Utilities Module
 //!
-//! This module provides helper functions for clipboard operations
-//! and retrieving the cursor position.
+//! This module provides supporting functionality used throughout the application,
+//! primarily for system-level tasks such as clipboard interaction and cursor positioning.
+//!
+//! # Contents
+//! - [`copy_to_clipboard`]: Copies the contents of a file to the Windows clipboard as Unicode text.
+//! - [`get_cursor_position`]: Retrieves the current global mouse cursor position (screen coordinates).
+//!
+//! # Platform Compatibility
+//! - This module is **Windows-only** due to its use of the Win32 API (`clipboard-win` and `windows` crates).
+//!
+//! # Use Cases
+//! - GUI positioning based on current cursor location.
+//! - Copying output (`tags_output.txt`) to the clipboard for easy pasting into external tools (e.g., chatbots, editors).
+//!
+//! # Notes
+//! - Functions in this module are designed to fail gracefully and never panic.
+//! - They are safe to call from both GUI and CLI contexts.
 
 use clipboard_win::{formats, Clipboard, Setter};
 use std::fs::read_to_string;
 use std::io;
 
-/// Copies the contents of a specified file into the system clipboard as Unicode text.
+/// Copies the contents of a file into the Windows system clipboard as Unicode text.
 ///
 /// # Parameters
-/// - `file_path`: A string slice (`&str`) representing the path to the file whose contents should be copied.
+/// - `file_path`: The path to the file whose contents should be copied to the clipboard.
 ///
 /// # Returns
-/// - `Ok(())`: If the file is successfully read and its contents are set into the clipboard.
-/// - `Err(std::io::Error)`: If any I/O or clipboard operation fails.
+/// - `Ok(())` if the file was successfully read and its contents placed into the clipboard.
+/// - `Err(std::io::Error)` if:
+///   - The file could not be read,
+///   - The clipboard could not be opened,
+///   - Or writing to the clipboard failed.
 ///
 /// # Behavior
-/// - Reads the entire contents of the specified file into a `String`.
-/// - Attempts to open the system clipboard with up to 10 retries (to handle contention with other applications).
-/// - Writes the file's contents into the clipboard in Unicode (UTF-16) format.
-/// - If any step fails (file read, clipboard open, or clipboard write), returns an error.
-///
-/// # Error Handling
-/// - If reading the file fails (e.g., file not found or permission denied), returns an `Err`.
-/// - If the clipboard cannot be accessed after multiple attempts, returns an `Err`.
-/// - If writing Unicode content to the clipboard fails, returns an `Err`.
-/// - Errors are wrapped as `std::io::Error` for consistent I/O-like error handling.
+/// - Reads the entire file as a UTF-8 string.
+/// - Opens the clipboard using `clipboard-win`, retrying up to 10 times (to account for potential contention).
+/// - Writes the contents to the clipboard in Unicode (UTF-16) format.
 ///
 /// # Panics
-/// - This function does not explicitly panic under normal conditions.
-/// - Panics could only occur if the underlying clipboard library (`clipboard-win`) encounters an unrecoverable internal error, which is highly unlikely.
+/// - This function does not panic under normal conditions.
+/// - Internal panics may only occur if the `clipboard-win` crate encounters a critical system error (extremely rare).
+///
+/// # Notes
+/// - This function is **Windows-only**. It uses the `clipboard-win` crate, which wraps native Win32 clipboard APIs.
+/// - If the file is empty, the clipboard will be set to an empty string.
+/// - Any previous clipboard contents will be overwritten.
+/// - Retrying clipboard access helps avoid issues where another app (like a browser or editor) temporarily locks it.
+///
+/// # Limitations
+/// - No support for non-text formats (e.g., images or rich text).
+/// - No concurrent access protection — do not call this from multiple threads simultaneously.
 ///
 /// # Example
 /// ```rust
-/// use std::io;
-///
-/// fn main() -> io::Result<()> {
-///     copy_to_clipboard("tags_output.txt")?;
-///     println!("File contents successfully copied to clipboard.");
-///     Ok(())
-/// }
+/// copy_to_clipboard("tags_output.txt")?;
+/// println!("Copied tags_output.txt to clipboard.");
 /// ```
-///
-/// # Platform-Specific Behavior
-/// - **Supported**: Only on Windows, using the `clipboard-win` crate.
-/// - **Unsupported**: On Linux, macOS, or other platforms; would require alternative clipboard implementations.
-///
-/// # Notes
-/// - Clipboard writes overwrite any existing clipboard contents.
-/// - If the file is empty, the clipboard will be cleared to an empty string.
-/// - Retrying clipboard access helps avoid common issues where another application temporarily locks the clipboard.
-/// - Unicode encoding ensures compatibility with international characters (e.g., Chinese, Japanese, accented characters).
 pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
     let file_contents = read_to_string(file_path)?;
 
@@ -65,45 +71,43 @@ pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
     Ok(())
 }
 
-/// Retrieves the current mouse cursor position on the screen as an `(x, y)` tuple.
+/// Retrieves the current position of the mouse cursor on the screen.
 ///
 /// # Returns
-/// - `Some((x, y))`: If the cursor position is successfully retrieved.
-///   - `x`: Horizontal screen coordinate (in pixels).
-///   - `y`: Vertical screen coordinate (in pixels).
-/// - `None`: If the underlying Windows API call fails.
+/// - `Some((x, y))`: A tuple of screen coordinates (in pixels) if successful:
+///   - `x`: Horizontal screen position.
+///   - `y`: Vertical screen position.
+/// - `None`: If the call to the Windows API fails.
 ///
 /// # Behavior
-/// - Calls the Windows API function `GetCursorPos` to fetch the global screen coordinates of the cursor.
-/// - Converts the raw integer coordinates (`i32`) to `f32` for compatibility with GUI frameworks and scaling.
-/// - Returns the coordinates wrapped in `Some` if successful; otherwise, returns `None`.
+/// - Uses the Win32 API function `GetCursorPos` via the `windows` crate to get the global screen coordinates.
+/// - Converts the result from `i32` to `f32` for compatibility with UI libraries like `egui`.
+/// - The coordinates are absolute (relative to the screen), not relative to any window or control.
 ///
-/// # Error Handling
-/// - If the call to `GetCursorPos` fails (e.g., due to permission issues, rare on normal desktops), returns `None`.
-/// - No panics or crashes occur on failure; the function degrades gracefully.
+/// # Platform Support
+/// - **Supported**: Windows only.
+/// - **Unsupported**: Will not compile on non-Windows systems unless conditional compilation is added.
 ///
 /// # Panics
-/// - This function does not panic under normal circumstances.
-/// - Only a catastrophic failure within the `windows` crate (Win32 bindings) could cause an indirect panic.
+/// - This function does **not** panic.
+/// - A failure to retrieve the cursor position results in `None`.
+///
+/// # Use Cases
+/// - Used to position GUI windows (e.g., opening a UI near the cursor).
+/// - Useful for tooltip systems, context menus, or floating windows.
 ///
 /// # Example
 /// ```rust
-/// fn main() {
-///     match get_cursor_position() {
-///         Some((x, y)) => println!("Cursor is at: ({}, {})", x, y),
-///         None => eprintln!("Failed to retrieve cursor position."),
-///     }
+/// if let Some((x, y)) = get_cursor_position() {
+///     println!("Cursor is at: ({x}, {y})");
+/// } else {
+///     eprintln!("⚠️ Could not retrieve cursor position.");
 /// }
 /// ```
 ///
-/// # Platform-Specific Behavior
-/// - **Supported**: Only on Windows, using `windows` crate's bindings to `user32.dll`.
-/// - **Unsupported**: On non-Windows platforms (Linux, macOS); alternative implementations would be needed for cross-platform support.
-///
 /// # Notes
-/// - The returned coordinates are relative to the full screen (not relative to any window).
-/// - Values are in physical screen pixels; additional scaling (for DPI awareness) may be necessary for certain GUI contexts.
-/// - The function assumes that calling `GetCursorPos` is cheap enough to use per-frame in GUI applications.
+/// - Returns coordinates in physical screen pixels — no DPI scaling is applied.
+/// - In multi-monitor setups, coordinates reflect the full desktop space and may be negative if the primary screen is not at (0,0).
 pub fn get_cursor_position() -> Option<(f32, f32)> {
     use windows::Win32::Foundation::POINT;
     use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
