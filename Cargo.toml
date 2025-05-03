@@ -1,7 +1,7 @@
 [package]
     edition = "2021"
     name    = "code-file-wrapper"
-    version = "1.0.0"
+    version = "1.0.1"
 
 [dependencies]
     # IMPORTANT: Enable the "derive" feature to access Clap's derive macros.
