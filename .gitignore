@@ -25,3 +25,4 @@ Cargo.lock
 /target
 tags_output.txt
 .vscode/launch.json
+presets.json

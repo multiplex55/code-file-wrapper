@@ -1,4 +1,4 @@
-use crate::presets::save_presets;
+use crate::presets::{load_presets, save_presets};
 
 /// # GUI Module
 ///
@@ -24,6 +24,8 @@ pub struct ModeSelector<'a> {
     enable_recursive_search: &'a mut bool,
     ignored_folders: &'a mut String,
     open_manage_presets: bool,
+
+    open_preset_index: Option<usize>,
 }
 
 impl<'a> ModeSelector<'a> {
@@ -48,10 +50,11 @@ impl<'a> ModeSelector<'a> {
             preset_texts,
             selected_presets: HashSet::new(),
             warning_message: String::new(),
-            presets: get_presets(),
+            presets: load_presets(),
             enable_recursive_search,
             ignored_folders,
             open_manage_presets,
+            open_preset_index: None,
         }
     }
 }
@@ -274,27 +277,56 @@ impl eframe::App for ModeSelector<'_> {
             // Preset Manager Window
             if self.open_manage_presets {
                 egui::Window::new("Preset Manager")
+                    .collapsible(false)
                     .open(&mut self.open_manage_presets)
                     .show(ctx, |ui| {
                         let mut to_delete: Option<usize> = None;
 
                         for (i, preset) in self.presets.iter_mut().enumerate() {
-                            ui.group(|ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label("Name:");
-                                    ui.text_edit_singleline(&mut preset.name);
-                                    if ui.button("Delete").clicked() {
-                                        to_delete = Some(i);
-                                    }
+                            let is_open = self.open_preset_index == Some(i);
+                            let header_label = format!("▶ {}", preset.name);
+
+                            let response = egui::CollapsingHeader::new(header_label)
+                                .id_salt(format!("preset_{}", i))
+                                .default_open(is_open)
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label("Name:");
+                                        ui.text_edit_singleline(&mut preset.name);
+                                        if ui.button("Delete").clicked() {
+                                            to_delete = Some(i);
+                                        }
+                                    });
+
+                                    ui.label("Text:");
+                                    egui::ScrollArea::vertical()
+                                        .max_height(100.0)
+                                        .show(ui, |ui| {
+                                            ui.add(
+                                                egui::TextEdit::multiline(&mut preset.text)
+                                                    .desired_width(ui.available_width())
+                                                    .desired_rows(4),
+                                            );
+                                        });
+
+                                    ui.separator();
                                 });
-                                ui.label("Text:");
-                                ui.add(egui::TextEdit::multiline(&mut preset.text).desired_rows(4));
-                            });
-                            ui.separator();
+
+                            // Manual toggle behavior for stable collapse tracking
+                            if response.header_response.clicked() {
+                                if is_open {
+                                    self.open_preset_index = None;
+                                } else {
+                                    self.open_preset_index = Some(i);
+                                }
+                            }
                         }
 
                         if let Some(i) = to_delete {
                             self.presets.remove(i);
+                            if self.open_preset_index == Some(i) {
+                                self.open_preset_index = None;
+                            }
                         }
 
                         if ui.button("Add New Preset").clicked() {
