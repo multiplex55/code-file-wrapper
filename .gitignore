@@ -26,3 +26,4 @@ Cargo.lock
 tags_output.txt
 .vscode/launch.json
 presets.json
+filetypes.json
