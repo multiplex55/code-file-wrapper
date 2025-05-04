@@ -118,7 +118,7 @@ pub fn write_folder_tags(
     writeln!(output, "* Provide context above and below code changes to be explicit on where any change should occur.")?;
     writeln!(
         output,
-        "* Under text under [Additional Commands] should be read very carefully and followed absolutly"
+        "* Under text under [Additional Commands] should be read very carefully and followed absolutely"
     )?;
 
     Ok(())

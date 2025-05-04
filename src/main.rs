@@ -23,17 +23,18 @@
 
 #![windows_subsystem = "windows"]
 mod file_ops;
+mod filetypes;
 mod gui;
 mod presets;
 mod utils;
 
 use crate::file_ops::{append_additional_commands, write_folder_tags};
+use crate::filetypes::{get_filetypes, FileTypeGroup};
 use crate::gui::ModeSelector;
 use crate::utils::{copy_to_clipboard, get_cursor_position};
 
 use eframe::egui;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// The main entry point of the `code-file-wrapper` application.
@@ -74,30 +75,19 @@ use std::path::PathBuf;
 /// - Folder ignore logic is handled case-insensitively.
 /// - All user-facing dialogs are handled through the `rfd` crate.
 fn main() {
-    let modes: HashMap<&str, Vec<&str>> = HashMap::from([
-        ("AHK", vec!["ahk"]),
-        ("Rust", vec!["rs"]),
-        ("JSON", vec!["json"]),
-        ("XML", vec!["xml"]),
-        ("C/CPP", vec!["c", "cpp", "h"]),
-        ("lua", vec!["lua"]),
-        ("js", vec!["js"]),
-    ]);
-
+    let initial_file_type_groups = get_filetypes();
     let cursor_position = get_cursor_position();
 
-    let mut mode_list: Vec<&str> = modes.keys().cloned().collect();
-    mode_list.sort_unstable(); // Sort the modes alphabetically
-
     let (
+        file_type_groups,
         selected_dir,
-        selected_mode,
+        selected_type_index,
         enable_clipboard_copy,
         additional_commands,
         preset_texts,
         enable_recursive_search,
         ignored_folders,
-    ) = mode_selection_gui(mode_list, cursor_position);
+    ) = mode_selection_gui(initial_file_type_groups.clone(), cursor_position);
 
     let Some(dir) = selected_dir else {
         eprintln!("⚠️ No directory selected. Exiting.");
@@ -111,10 +101,12 @@ fn main() {
         std::process::exit(1);
     }
 
-    let Some(valid_exts) = selected_mode.and_then(|mode| modes.get(mode.as_str())) else {
-        eprintln!("⚠️ No mode selected. Exiting.");
+    let Some(group) = selected_type_index.and_then(|i| file_type_groups.get(i)) else {
+        eprintln!("⚠️ No file type group selected. Exiting.");
         std::process::exit(0);
     };
+
+    let valid_exts: Vec<&str> = group.extensions.iter().map(String::as_str).collect();
 
     let ignored_folders: Vec<String> = ignored_folders
         .lines()
@@ -122,7 +114,8 @@ fn main() {
         .filter(|s| !s.is_empty())
         .collect();
 
-    if let Err(e) = write_folder_tags(&dir, valid_exts, enable_recursive_search, &ignored_folders) {
+    if let Err(e) = write_folder_tags(&dir, &valid_exts, enable_recursive_search, &ignored_folders)
+    {
         eprintln!("❌ ERROR: Could not write folder tags: {}", e);
         std::process::exit(1);
     }
@@ -171,6 +164,7 @@ fn main() {
             }
         }
     }
+
     std::process::exit(0);
 }
 
@@ -224,18 +218,20 @@ fn main() {
 /// }
 /// ```
 fn mode_selection_gui(
-    modes: Vec<&str>,
+    file_type_groups: Vec<FileTypeGroup>,
     initial_pos: Option<(f32, f32)>,
 ) -> (
-    Option<PathBuf>,
-    Option<String>,
-    bool,
-    String,
-    Vec<String>,
-    bool,
-    String,
+    Vec<FileTypeGroup>,
+    Option<PathBuf>, // selected_dir
+    Option<usize>,   // selected file type group index
+    bool,            // clipboard
+    String,          // additional commands
+    Vec<String>,     // preset texts
+    bool,            // recursive
+    String,          // ignored folders
 ) {
-    let mut selected_mode: Option<String> = None;
+    let mut local_file_type_groups = file_type_groups;
+    let mut selected_mode: Option<usize> = None;
     let mut enable_clipboard_copy = false;
     let mut additional_commands = String::new();
     let mut selected_dir: Option<PathBuf> = None;
@@ -247,7 +243,7 @@ fn mode_selection_gui(
     let (x, y) = initial_pos.unwrap_or((100.0, 100.0)); // Default if position is unavailable
 
     let app = ModeSelector::new(
-        modes,
+        &mut local_file_type_groups,
         &mut selected_mode,
         &mut enable_clipboard_copy,
         &mut additional_commands,
@@ -273,6 +269,7 @@ fn mode_selection_gui(
     );
 
     (
+        local_file_type_groups,
         selected_dir,
         selected_mode,
         enable_clipboard_copy,

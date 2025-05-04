@@ -23,8 +23,10 @@
 //! - Uses `eframe::run_native` to block execution until the user completes the selection.
 //! - Updates shared mutable state passed by reference from `main.rs`.
 
+use crate::filetypes::{get_filetypes, save_filetypes, FileTypeGroup};
 use crate::presets::save_presets;
 use crate::presets::{get_presets, PresetCommand};
+
 use eframe::egui;
 use rfd::FileDialog;
 use std::collections::HashSet;
@@ -62,8 +64,8 @@ use std::path::PathBuf;
 /// - GUI layout and interactivity are driven entirely from the `update()` implementation.
 /// - Not intended to be reused or retained beyond a single GUI session.
 pub struct ModeSelector<'a> {
-    modes: Vec<String>,
-    selected_mode: &'a mut Option<String>,
+    file_type_groups: &'a mut Vec<FileTypeGroup>,
+    selected_type_index: &'a mut Option<usize>,
     enable_clipboard_copy: &'a mut bool,
     additional_commands: &'a mut String,
     selected_dir: &'a mut Option<PathBuf>,
@@ -75,14 +77,16 @@ pub struct ModeSelector<'a> {
     ignored_folders: &'a mut String,
     open_manage_presets: bool,
     open_preset_index: Option<usize>,
+    open_manage_types: bool,
     success_message: Option<(String, std::time::Instant)>,
+    joined_extensions: Vec<String>,
 }
 
 impl<'a> ModeSelector<'a> {
     /// Creates a new GUI instance.
     pub fn new(
-        modes: Vec<&str>,
-        selected_mode: &'a mut Option<String>,
+        file_type_groups: &'a mut Vec<FileTypeGroup>,
+        selected_type_index: &'a mut Option<usize>,
         enable_clipboard_copy: &'a mut bool,
         additional_commands: &'a mut String,
         selected_dir: &'a mut Option<PathBuf>,
@@ -91,9 +95,13 @@ impl<'a> ModeSelector<'a> {
         ignored_folders: &'a mut String,
         open_manage_presets: bool,
     ) -> Self {
+        let joined_extensions = file_type_groups
+            .iter()
+            .map(|g| g.extensions.join("\n"))
+            .collect();
         Self {
-            modes: modes.into_iter().map(String::from).collect(),
-            selected_mode,
+            file_type_groups,
+            selected_type_index,
             enable_clipboard_copy,
             additional_commands,
             selected_dir,
@@ -105,7 +113,9 @@ impl<'a> ModeSelector<'a> {
             ignored_folders,
             open_manage_presets,
             open_preset_index: None,
+            open_manage_types: false,
             success_message: None,
+            joined_extensions,
         }
     }
 }
@@ -203,24 +213,31 @@ impl eframe::App for ModeSelector<'_> {
 
             // Mode Selection
             ui.label("File Type Selection:");
-            ui.horizontal_wrapped(|ui| {
-                for mode in &self.modes {
-                    let is_selected = self.selected_mode.as_deref() == Some(mode);
-                    let (bg, fg) = if is_selected {
-                        (egui::Color32::from_rgb(0, 120, 40), egui::Color32::WHITE)
-                    } else {
-                        (
-                            ui.visuals().widgets.inactive.bg_fill,
-                            ui.visuals().widgets.inactive.fg_stroke.color,
-                        )
-                    };
+            ui.horizontal(|ui| {
+                ui.label("File Type:");
 
-                    let btn =
-                        ui.add(egui::Button::new(egui::RichText::new(mode).color(fg)).fill(bg));
-                    if btn.clicked() {
-                        *self.selected_mode = Some(mode.clone());
-                        self.warning_message.clear();
-                    }
+                let selected_label = self
+                    .selected_type_index
+                    .and_then(|i| self.file_type_groups.get(i))
+                    .map(|g| g.name.as_str())
+                    .unwrap_or("None");
+
+                egui::ComboBox::from_id_source("filetype_group")
+                    .selected_text(selected_label)
+                    .show_ui(ui, |ui| {
+                        for (i, group) in self.file_type_groups.iter().enumerate() {
+                            if ui
+                                .selectable_label(*self.selected_type_index == Some(i), &group.name)
+                                .clicked()
+                            {
+                                *self.selected_type_index = Some(i);
+                                self.warning_message.clear();
+                            }
+                        }
+                    });
+
+                if ui.button("Manage File Types").clicked() {
+                    self.open_manage_types = true;
                 }
             });
 
@@ -319,7 +336,7 @@ impl eframe::App for ModeSelector<'_> {
             if ui.button("OK").clicked() {
                 if self.selected_dir.is_none() {
                     self.warning_message = "⚠️ Please select a directory before proceeding!".into();
-                } else if self.selected_mode.is_none() {
+                } else if self.selected_type_index.is_none() {
                     self.warning_message = "⚠️ Please select a file type before proceeding!".into();
                 } else {
                     // Push selected preset text
@@ -328,8 +345,114 @@ impl eframe::App for ModeSelector<'_> {
                             self.preset_texts.push(preset.text.clone());
                         }
                     }
+                    *self.file_type_groups = self.file_type_groups.clone();
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
+            }
+
+            if self.open_manage_types {
+                if let Some((message, timestamp)) = &self.success_message {
+                    if timestamp.elapsed().as_secs_f32() < 3.0 {
+                        ctx.request_repaint_after(std::time::Duration::from_millis(100));
+                        egui::Window::new("✔ File Types Saved")
+                            .anchor(egui::Align2::LEFT_TOP, [10.0, 40.0])
+                            .resizable(false)
+                            .collapsible(false)
+                            .show(ctx, |ui| {
+                                ui.label(
+                                    egui::RichText::new(message).color(egui::Color32::LIGHT_GREEN),
+                                );
+                            });
+                    } else {
+                        self.success_message = None;
+                    }
+                }
+
+                egui::Window::new("File Type Manager")
+                    .collapsible(false)
+                    .open(&mut self.open_manage_types)
+                    .show(ctx, |ui| {
+                        let mut to_delete: Option<usize> = None;
+
+                        // Sync buffer if group count changed
+                        if self.joined_extensions.len() != self.file_type_groups.len() {
+                            self.joined_extensions = self
+                                .file_type_groups
+                                .iter()
+                                .map(|g| g.extensions.join("\n"))
+                                .collect();
+                        }
+
+                        for (i, group) in self.file_type_groups.iter_mut().enumerate() {
+                            let is_open = self.open_preset_index == Some(i);
+                            let response = egui::CollapsingHeader::new(&group.name)
+                                .id_salt(format!("filetype_{}", i))
+                                .default_open(is_open)
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label("Group:");
+                                        ui.text_edit_singleline(&mut group.name);
+                                        if ui.button("Delete").clicked() {
+                                            to_delete = Some(i);
+                                        }
+                                    });
+
+                                    ui.label("Extensions (one per line):");
+
+                                    egui::ScrollArea::vertical()
+                                        .max_height(100.0)
+                                        .id_source(format!("ext_scroll_{}", i))
+                                        .show(ui, |ui| {
+                                            let buf = &mut self.joined_extensions[i];
+                                            let changed = ui
+                                                .add(
+                                                    egui::TextEdit::multiline(buf)
+                                                        .desired_width(ui.available_width())
+                                                        .hint_text("rs\ntoml\nmd"),
+                                                )
+                                                .changed();
+
+                                            if changed {
+                                                group.extensions = buf
+                                                    .lines()
+                                                    .map(|s| s.trim().to_string())
+                                                    .filter(|s| !s.is_empty())
+                                                    .collect();
+                                            }
+                                        });
+
+                                    ui.separator();
+                                });
+
+                            if response.header_response.clicked() {
+                                self.open_preset_index = if is_open { None } else { Some(i) };
+                            }
+                        }
+
+                        if let Some(i) = to_delete {
+                            self.file_type_groups.remove(i);
+                            self.joined_extensions.remove(i);
+                            if self.open_preset_index == Some(i) {
+                                self.open_preset_index = None;
+                            }
+                        }
+
+                        if ui.button("Add New Group").clicked() {
+                            self.file_type_groups.push(FileTypeGroup {
+                                name: "New Group".into(),
+                                extensions: vec![],
+                            });
+                            self.joined_extensions.push(String::new());
+                        }
+
+                        if ui.button("Save Changes").clicked() {
+                            save_filetypes(&self.file_type_groups);
+                            self.success_message = Some((
+                                "✅ File types saved successfully.".into(),
+                                std::time::Instant::now(),
+                            ));
+                        }
+                    });
             }
 
             // Preset Manager Window
