@@ -220,7 +220,7 @@ fn main() {
 /// - Writes no files, only collects data.
 ///
 /// # Notes
-/// - GUI layout and logic are fully encapsulated in [`ModeSelector::update`].
+/// - GUI layout and logic are fully encapsulated in `ModeSelector::update`.
 /// - If the user closes the window without making selections, the returned directory and mode are `None`.
 ///
 /// # Example
