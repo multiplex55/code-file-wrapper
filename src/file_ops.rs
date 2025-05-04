@@ -33,53 +33,56 @@ use std::fs::{read_dir, File};
 use std::io::{Read, Write};
 use std::path::Path;
 
-/// Writes the contents of all valid files in a specified directory to a `tags_output.txt` file,
-/// wrapping each file's contents inside XML-style tags based on the relative file path.
+/// Writes the contents of selected files in a directory into a tagged output file (`tags_output.txt`).
+///
+/// # Purpose
+/// Collects all files matching specific extensions from a given directory, optionally recursively,
+/// and writes each file’s contents into `tags_output.txt`, wrapped in an XML-style tag that corresponds
+/// to its relative path.
 ///
 /// # Parameters
-/// - `dir`: A reference to the root directory `Path` to scan for files.
-/// - `valid_exts`: A list of allowed file extensions (e.g., `["rs", "txt"]`), without leading dots.
-/// - `recursive`: If `true`, traverses the directory tree recursively; otherwise, only the top-level is processed.
-/// - `ignored_folders`: A list of folder names (case-insensitive) to skip during recursive traversal.
-///
-/// # Behavior
-/// - Creates or overwrites `tags_output.txt` in the current working directory.
-/// - Traverses the given directory (recursively or not depending on `recursive`).
-/// - For each file with a valid extension:
-///   - Reads the file contents (assuming UTF-8 encoding).
-///   - Writes the contents between opening and closing tags derived from the file’s relative path.
+/// - `dir`: Root directory to scan (`&Path`).
+/// - `valid_exts`: List of allowed file extensions (e.g., `["rs", "md"]`) — case-sensitive and without dots.
+/// - `recursive`: If `true`, traverses subdirectories. If `false`, only scans the top-level directory.
+/// - `ignored_folders`: List of folder names (case-insensitive) to skip during recursive traversal (e.g., `["target", ".git"]`).
 ///
 /// # Output Format
-/// Each file is wrapped in a tag like:
+/// Each file is wrapped in tags representing its relative path:
 /// ```xml
-/// <relative\path\to\file.rs>
+/// <src\main.rs>
 /// // file contents here...
-/// </relative\path\to\file.rs>
+/// </src\main.rs>
 /// ```
 ///
 /// # Footer
-/// After processing, the file includes an instructional block describing the output usage,
-/// followed by a note to pay close attention to `[Additional Commands]` if present.
+/// After all files are written, an instructional block is appended to the file that:
+/// - Explains the output format and purpose.
+/// - Instructs users to carefully review appended command blocks.
+/// - Prepares the result for downstream AI-assisted editing or transformation.
 ///
-/// # Panics
-/// - This function does not panic explicitly. It uses the `?` operator to propagate I/O errors.
+/// # Behavior
+/// - All matching files are assumed to be UTF-8.
+/// - Files with unreadable contents (non-UTF8 or access errors) are skipped with a warning to `stderr`.
+/// - Uses Windows-style `\` in tag paths, even on other operating systems.
 ///
 /// # Errors
-/// - Returns `Err(std::io::Error)` if:
-///   - The output file cannot be created.
-///   - The directory cannot be read.
-///   - A file read operation fails fatally (non-fatal file read errors are printed to `stderr` but skipped).
+/// Returns `Err(std::io::Error)` if:
+/// - The directory or any file fails to open/read.
+/// - The output file (`tags_output.txt`) cannot be created or written.
+///
+/// # Panics
+/// This function does **not** panic.
+/// All filesystem I/O is handled using `?` or skipped safely.
 ///
 /// # Notes
-/// - Non-UTF8 files are skipped with a warning.
-/// - Folder names in `ignored_folders` are compared case-insensitively.
-/// - Hidden folders (starting with `.`) are also automatically skipped during recursion.
-/// - File path tags use Windows-style `\` separators regardless of OS.
+/// - Tag paths are relative to `dir`, even during recursion.
+/// - Hidden directories (starting with `.`) are skipped automatically.
+/// - Case-insensitive folder matching is used for `ignored_folders`, but extension matching is case-sensitive.
 ///
 /// # Example
 /// ```rust
 /// let dir = Path::new("src");
-/// let exts = &["rs", "md"];
+/// let exts = &["rs", "toml"];
 /// let ignored = vec!["target".to_string(), ".git".to_string()];
 /// write_folder_tags(dir, exts, true, &ignored)?;
 /// ```
@@ -124,34 +127,40 @@ pub fn write_folder_tags(
     Ok(())
 }
 
-/// Determines whether a file should be considered human-readable based on its extension.
+/// Determines whether a file should be processed based on its extension.
+///
+/// # Purpose
+/// Acts as a simple filter to determine whether a file is eligible for inclusion in output generation,
+/// based solely on its extension. Used to avoid processing binary, unsupported, or irrelevant file types.
 ///
 /// # Parameters
-/// - `path`: Reference to a `Path` representing the file to inspect.
-/// - `valid_exts`: A list of file extensions (e.g., `["rs", "txt"]`) to match against. Extensions **must not** include leading dots.
+/// - `path`: A reference to the [`Path`] representing the file to evaluate.
+/// - `valid_exts`: A slice of valid file extensions (`&[&str]`), such as `["rs", "json", "toml"]`.
+///   Extensions **must not** include leading dots (e.g., `"rs"`, not `".rs"`).
 ///
 /// # Returns
-/// - `true` if the file's extension matches one of the values in `valid_exts`.
+/// - `true` if the file has a valid extension (case-sensitive match).
 /// - `false` if:
 ///   - The file has no extension,
-///   - The extension is not valid UTF-8,
-///   - Or it does not match any item in `valid_exts`.
+///   - The extension cannot be interpreted as UTF-8,
+///   - Or the extension is not in the list of `valid_exts`.
 ///
 /// # Behavior
 /// - Extracts the file extension using `Path::extension()`.
-/// - Converts it to a UTF-8 string using `to_str()`.
-/// - Performs an exact string match against the provided list.
+/// - Converts the extension to a string using `.to_str()`.
+/// - Performs an exact string match against `valid_exts`.
 ///
 /// # Panics
-/// - This function does **not** panic under any normal circumstances.
+/// This function does **not** panic under normal conditions.
 ///
 /// # Limitations
-/// - Does **not** inspect file contents or MIME types.
-/// - Does **not** distinguish between binary and text files.
-/// - Case-sensitive by default (e.g., `"RS"` and `"rs"` are considered different).
+/// - Does not distinguish between binary/text content.
+/// - Case-sensitive by design: `"RS"` is treated differently than `"rs"`.
+/// - Does not inspect the actual content of the file or its MIME type.
 ///
 /// # Use Cases
-/// - Acts as a simple filter to determine whether a file is eligible for reading and inclusion in output generation.
+/// - Filtering which files should be read and wrapped in output.
+/// - Used in both recursive and non-recursive modes for consistency.
 ///
 /// # Example
 /// ```rust
@@ -159,12 +168,12 @@ pub fn write_folder_tags(
 /// assert!(is_human_readable(path, &["rs", "txt"]));
 ///
 /// let path = Path::new("README");
-/// assert!(!is_human_readable(path, &["md"])); // no extension
+/// assert!(!is_human_readable(path, &["md"])); // has no extension
 /// ```
 ///
 /// # Future Enhancements
-/// - Support case-insensitive matching if needed.
-/// - Add content-based heuristics (e.g., check for UTF-8 validity or printable character ratios).
+/// - Optionally support case-insensitive matching.
+/// - Add content-based filtering (e.g., UTF-8 check or printable character ratio).
 fn is_human_readable(path: &Path, valid_exts: &[&str]) -> bool {
     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
         return valid_exts.contains(&ext);
@@ -172,42 +181,53 @@ fn is_human_readable(path: &Path, valid_exts: &[&str]) -> bool {
     false
 }
 
-/// Appends a block of additional text to an existing output file, creating the file if it does not exist.
+/// Appends a block of custom user-provided text to the end of the output file,
+/// under a `[Additional Commands]` header.
+///
+/// # Purpose
+/// Allows users to supplement the main output (`tags_output.txt`) with additional
+/// instructions, prompts, or commands that should be interpreted after the code sections.
 ///
 /// # Parameters
-/// - `file_path`: Path to the output file (typically `"tags_output.txt"`).
-/// - `additional_commands`: Arbitrary text (typically user instructions or commands) to be appended to the file.
+/// - `file_path`: Path to the file to append to (typically `"tags_output.txt"`).
+/// - `additional_commands`: Multiline string of user-defined commands or instructions to include.
 ///
 /// # Behavior
-/// - Opens the target file in **append mode**, creating it if it doesn't exist.
-/// - Writes a fixed section header `[Additional Commands]`, followed by the provided `additional_commands` string.
-/// - Ensures that newlines are included for proper formatting.
+/// - Opens the file in append mode, creating it if it does not exist.
+/// - Writes a new section labeled `[Additional Commands]` followed by the content of `additional_commands`.
+/// - Ensures newline padding before and after for readability and visual separation.
 ///
 /// # Output Format
-/// The appended content will follow this structure at the end of the file:
-/// ```
+/// The appended section will resemble:
+/// ```text
 /// [Additional Commands]
-/// user text here...
+/// user instructions...
 /// ```
 ///
-/// # Errors
-/// - Returns `Err(std::io::Error)` if:
-///   - The file cannot be opened or created.
-///   - Writing to the file fails for any reason (e.g., permission denied, disk full).
+/// # Returns
+/// - `Ok(())` if writing was successful.
+/// - `Err(std::io::Error)` if the file could not be opened or written to.
 ///
 /// # Panics
-/// - This function does not panic under normal conditions.
-/// - All I/O operations are fallible and handled via the `?` operator.
+/// - This function does not panic. All I/O operations are fallible and propagated using `?`.
 ///
 /// # Notes
-/// - Repeated calls will result in multiple `[Additional Commands]` headers unless deduplication is added externally.
-/// - The caller is responsible for ensuring that `additional_commands` is not empty or malformed.
-/// - This function does not trim or sanitize the content — it writes exactly what is passed in.
+/// - If `additional_commands` is empty, the section is still written unless filtered externally.
+/// - Multiple calls will result in multiple `[Additional Commands]` sections unless deduplicated by the caller.
+/// - No sanitization or validation is performed on the `additional_commands` text.
+///
+/// # Use Cases
+/// - Appending detailed user instructions to aid post-processing of the file.
+/// - Integrating command prompts or AI instructions for tools like ChatGPT.
 ///
 /// # Example
 /// ```rust
-/// append_additional_commands("tags_output.txt", "TODO: Review all usage of unwrap().")?;
+/// append_additional_commands("tags_output.txt", "TODO: Review all unwrap() usages.")?;
 /// ```
+///
+/// # See Also
+/// - [`write_folder_tags`]: Main output function that creates the initial `tags_output.txt`.
+/// - [`copy_to_clipboard`]: Can be used after appending to share the result.
 pub fn append_additional_commands(
     file_path: &str,
     additional_commands: &str,
@@ -220,57 +240,61 @@ pub fn append_additional_commands(
     Ok(())
 }
 
-/// Recursively traverses a directory tree, writing the contents of valid files into an output file,
-/// while skipping ignored folders and hidden directories.
+/// Recursively traverses a directory and writes the contents of matching files to an output file,
+/// wrapping each in XML-style tags based on its relative path.
+///
+/// # Purpose
+/// Processes all files with specified extensions within a directory tree, skipping ignored or hidden folders,
+/// and outputs their contents to a single file (`tags_output.txt`) with clear path-based XML tags.
 ///
 /// # Parameters
-/// - `root_dir`: The top-level directory used to compute relative paths for XML tags.
-/// - `dir`: The current directory being scanned (initially the same as `root_dir`).
-/// - `valid_exts`: A list of valid file extensions (e.g., `["rs", "json"]`) to filter files.
-/// - `output`: A mutable reference to the open output file (`tags_output.txt`), to which results are written.
-/// - `ignored_folders`: A list of folder names to skip, case-insensitive (e.g., `["target", ".git"]`).
+/// - `root_dir`: The root directory of the traversal, used to compute relative paths for output tags.
+/// - `dir`: The current directory being visited (initially the same as `root_dir`).
+/// - `valid_exts`: List of file extensions (`&[&str]`) that are allowed (e.g., `["rs", "json"]`).
+/// - `output`: A mutable reference to the output file (typically `tags_output.txt`).
+/// - `ignored_folders`: A list of folder names (case-insensitive) to skip during traversal
+///   (e.g., `[".git", "target"]`).
 ///
 /// # Behavior
-/// - Traverses the directory tree rooted at `dir`.
+/// - Walks the directory tree rooted at `dir`, following folders recursively.
 /// - Skips:
-///   - Any directory in `ignored_folders` (case-insensitive match).
-///   - Any hidden directory (name starts with a `.`).
-/// - For each encountered file with a valid extension:
-///   - Attempts to read the contents as UTF-8.
-///   - Writes the contents between XML-style tags based on the file’s path relative to `root_dir`.
+///   - Hidden directories (names starting with `.`).
+///   - Directories matching any entry in `ignored_folders`, case-insensitively.
+/// - For each file:
+///   - If it matches a valid extension (`is_human_readable`), the file is opened and read as UTF-8.
+///   - Its contents are written to `output`, surrounded by `<relative\path>` XML-style tags.
 ///
 /// # Output Format
-/// Output to the file looks like:
+/// For each valid file:
 /// ```xml
 /// <subdir\file.rs>
-/// // contents...
+/// // file contents...
 /// </subdir\file.rs>
 /// ```
 ///
-/// # Errors
-/// - Returns `Err(std::io::Error)` if a fatal I/O error occurs, such as:
-///   - Failing to read the directory.
-///   - Failing to open the file.
-///   - Failing to write to the output file.
-/// - If reading a particular file fails (e.g., due to encoding), a warning is printed to `stderr` and the file is skipped.
+/// # Returns
+/// - `Ok(())` if all operations succeed.
+/// - `Err(std::io::Error)` if a fatal error occurs (e.g., directory read or file open failure).
 ///
 /// # Panics
-/// - This function does not panic under normal circumstances.
-/// - All filesystem operations are wrapped with `?` or handled gracefully.
+/// - This function does not panic. All I/O errors are propagated or skipped with logging.
 ///
 /// # Notes
-/// - Relative paths are derived using `Path::strip_prefix(root_dir)`.
-/// - Paths are converted to string tags using `.to_str()` (files with invalid UTF-8 paths are skipped).
-/// - File names and extensions are not modified — if extension case sensitivity matters, it must be handled by `valid_exts`.
-/// - Designed to work well with Windows paths but portable to other platforms as long as file paths are valid UTF-8.
+/// - Invalid UTF-8 file paths or contents are skipped silently or with a warning to `stderr`.
+/// - Tag paths always use Windows-style `\` separators for cross-platform consistency.
+/// - Designed to integrate with `write_folder_tags`, not called directly by end users.
 ///
 /// # Example
 /// ```rust
 /// let root = Path::new("src");
-/// let mut file = File::create("tags_output.txt")?;
-/// let ignored = vec!["target".to_string(), "build".to_string()];
-/// write_folder_tags_recursive(root, root, &["rs"], &mut file, &ignored)?;
+/// let mut output = File::create("tags_output.txt")?;
+/// let ignored = vec!["target".to_string(), ".git".to_string()];
+/// write_folder_tags_recursive(root, root, &["rs"], &mut output, &ignored)?;
 /// ```
+///
+/// # See Also
+/// - [`write_folder_tags`]: Top-level API that wraps this function and handles non-recursive behavior.
+/// - [`is_human_readable`]: Checks extension validity before file content is read.
 fn write_folder_tags_recursive(
     root_dir: &Path,
     dir: &Path,

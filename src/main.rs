@@ -37,43 +37,56 @@ use eframe::egui;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::path::PathBuf;
 
-/// The main entry point of the `code-file-wrapper` application.
+/// The main entry point of the application.
 ///
-/// # Overview
-/// This function initializes and orchestrates the core application logic,
-/// including GUI interaction, directory traversal, file filtering, output generation,
-/// and optional clipboard copying or user prompt to open the result.
+/// # Purpose
+/// Coordinates the entire program flow, from GUI input to file processing and clipboard interaction.
+///
+/// # Parameters
+/// None.
 ///
 /// # Behavior
-/// - Launches a GUI to gather user input for:
-///   - Target directory
-///   - Desired file type/mode
-///   - Optional recursive search toggle
-///   - Preset and custom command texts
-///   - Clipboard copy option
-/// - Based on the selected file mode, filters for specific file extensions.
-/// - Traverses the selected directory, optionally recursively.
-/// - Writes file contents to a `tags_output.txt` file wrapped in XML-style tags.
-/// - Appends preset commands and user-provided instructions if any.
-/// - Copies the output to clipboard or optionally opens it in Notepad.
+/// - Loads initial file type groups from disk (or uses defaults).
+/// - Displays the GUI to collect user input (directory, file type, recursion, etc.).
+/// - Validates the user input and exits with a warning if invalid.
+/// - Calls [`write_folder_tags`] to process matching files in the selected directory.
+/// - Appends any user-supplied commands and preset commands to the output file.
+/// - Copies the file to the clipboard if requested, or optionally opens it in Notepad.
 ///
 /// # Panics
-/// - If the selected directory is missing or invalid, the program will terminate via `std::process::exit(1)`.
-/// - Similarly, failure to write to `tags_output.txt` also causes an immediate process exit.
+/// - Does not explicitly panic, but will `exit(1)` if:
+///   - The selected path is not a directory.
+///   - `tags_output.txt` could not be written.
 ///
 /// # Errors
-/// - Warnings and recoverable errors (e.g., failure to copy to clipboard or open Notepad)
-///   are printed to `stderr`, but do not crash the application.
+/// - Errors are logged to `stderr`, including:
+///   - Invalid directory selection.
+///   - File write failures.
+///   - Clipboard failures or inability to launch Notepad.
 ///
 /// # Side Effects
-/// - Creates or overwrites `tags_output.txt` in the working directory.
-/// - May update the clipboard (on Windows).
-/// - Opens a GUI using the `eframe` crate and optionally spawns `notepad.exe`.
+/// - Overwrites or creates `tags_output.txt` in the working directory.
+/// - Optionally modifies the system clipboard.
+/// - Optionally spawns Notepad (`notepad.exe`) to view the output.
 ///
 /// # Notes
-/// - The user is required to make both a directory and file mode selection before proceeding.
-/// - Folder ignore logic is handled case-insensitively.
-/// - All user-facing dialogs are handled through the `rfd` crate.
+/// - Runs only on Windows (clipboard and dialog support).
+/// - Relies on GUI state to be collected before file operations.
+/// - Uses structured JSON files for storing user presets and file type modes.
+/// - Always exits cleanly via `std::process::exit(0)` or `exit(1)`.
+///
+/// # Example
+/// ```rust
+/// fn main() {
+///     // Triggers GUI, processes files, writes output, etc.
+/// }
+/// ```
+///
+/// # Related
+/// - [`mode_selection_gui`] – Launches the GUI and gathers input.
+/// - [`write_folder_tags`] – Handles directory traversal and XML tag output.
+/// - [`append_additional_commands`] – Adds user/preset commands to the final output.
+/// - [`copy_to_clipboard`] – Sends the output to the Windows clipboard.
 fn main() {
     let initial_file_type_groups = get_filetypes();
     let cursor_position = get_cursor_position();
@@ -168,55 +181,59 @@ fn main() {
     std::process::exit(0);
 }
 
-/// Launches a graphical user interface that allows the user to select a directory, file type mode,
-/// and various configuration options for processing files.
+/// Launches the graphical user interface and returns user selections for file processing.
+///
+/// # Purpose
+/// Gathers user configuration via an interactive GUI, including:
+/// - Target directory
+/// - File type group (by extension)
+/// - Whether to copy results to the clipboard
+/// - Additional instructional or preset commands
+/// - Recursive folder scanning options and ignored folders
 ///
 /// # Parameters
-/// - `modes`: A `Vec<&str>` containing the list of selectable file type modes (e.g., `"Rust"`, `"JSON"`).
-/// - `initial_pos`: An `Option<(f32, f32)>` specifying the screen coordinates to position the GUI window near the cursor.
-///   - If `None`, defaults to `(100.0, 100.0)` on screen.
+/// - `file_type_groups`: A list of [`FileTypeGroup`] values used to populate the file type dropdown.
+/// - `initial_pos`: Optional screen coordinates `(x, y)` to position the GUI window near the cursor.
 ///
 /// # Returns
 /// A tuple containing:
-/// - `Option<PathBuf>`: The selected directory (or `None` if canceled).
-/// - `Option<String>`: The selected file type mode (or `None` if canceled).
-/// - `bool`: Whether to automatically copy the output to the clipboard.
-/// - `String`: Additional command text entered by the user.
-/// - `Vec<String>`: List of preset texts selected or composed during the session.
-/// - `bool`: Whether recursive directory scanning is enabled.
-/// - `String`: Multiline text representing folders to ignore (one per line).
+/// - `Vec<FileTypeGroup>`: Possibly updated list of file type groups (if the user modified them).
+/// - `Option<PathBuf>`: The selected directory path.
+/// - `Option<usize>`: Index of the selected file type group, or `None` if not selected.
+/// - `bool`: Whether to copy output to the clipboard after generation.
+/// - `String`: Custom text commands to be appended to the output file.
+/// - `Vec<String>`: Collected preset command texts selected by the user.
+/// - `bool`: Whether recursive directory search is enabled.
+/// - `String`: Newline-separated list of folder names to ignore (e.g., `"target\n.git"`).
 ///
 /// # Behavior
-/// - Constructs a `ModeSelector` instance, passing mutable references to shared state variables.
-/// - Configures GUI options using `eframe::NativeOptions`, including size, minimum bounds, and screen position.
-/// - Launches a blocking GUI session with `eframe::run_native`, which continues until the user presses the `OK` button or closes the window.
-/// - Once the GUI closes, the final state is returned to the caller.
+/// - Spawns an `eframe` GUI using [`ModeSelector`], blocking until user presses OK or closes the window.
+/// - Captures all user interaction and returns configuration as pure values.
+/// - Defaults the GUI position to `(100.0, 100.0)` if no cursor position is provided.
 ///
 /// # Panics
-/// - This function does not panic under expected conditions.
-/// - If `eframe::run_native` fails internally (e.g., failed window creation), the error is ignored and defaults are returned.
+/// - This function does not panic.
+/// - If `eframe::run_native()` fails, no error is raised — a default empty configuration is returned.
 ///
 /// # Side Effects
-/// - Opens a native GUI window using `egui`.
-/// - Collects user input and stores it in memory (shared mutable fields passed into `ModeSelector`).
+/// - Opens a GUI window.
+/// - Writes no files, only collects data.
 ///
 /// # Notes
-/// - No runtime validation is performed inside this function; it is handled in `ModeSelector::update()`.
-/// - If the user closes the GUI without making a selection, `None` values will be returned for mode and directory.
-/// - This function should be called early in `main()` before any file processing occurs.
+/// - GUI layout and logic are fully encapsulated in [`ModeSelector::update`].
+/// - If the user closes the window without making selections, the returned directory and mode are `None`.
 ///
 /// # Example
 /// ```rust
-/// let modes = vec!["Rust", "JSON", "AHK"];
-/// let cursor_pos = get_cursor_position();
-///
-/// let (dir, mode, clipboard, additional, presets, recursive, ignored) =
-///     mode_selection_gui(modes, cursor_pos);
-///
-/// if let Some(path) = dir {
-///     println!("Selected directory: {:?}", path);
-/// }
+/// let groups = get_filetypes();
+/// let cursor = get_cursor_position();
+/// let (groups, dir, mode, clipboard, commands, presets, recursive, ignored) =
+///     mode_selection_gui(groups, cursor);
 /// ```
+///
+/// # Related
+/// - [`ModeSelector`] – Core GUI logic and layout.
+/// - [`get_cursor_position`] – Used to determine where to place the GUI window.
 fn mode_selection_gui(
     file_type_groups: Vec<FileTypeGroup>,
     initial_pos: Option<(f32, f32)>,

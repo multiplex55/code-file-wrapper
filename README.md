@@ -15,7 +15,7 @@
 ---
 
 ## 📌 Version  
-- **Latest Release:** `1.0.1`  
+- **Latest Release:** `1.1.0`  
 - **Author:** `Multiplex55`  
 - **License:** MIT  
 - **Platform:** 🖥 Windows Only  
@@ -26,6 +26,7 @@
 
 ✅ Wraps code files in clean XML-style tags based on relative paths  
 ✅ File extension filtering (`.rs`, `.json`, `.lua`, `.ahk`, etc.)  
+✅ 🔧 GUI-based File Type Group Manager (create/edit/delete extension sets)  
 ✅ Modern GUI with native folder picker and filetype selector  
 ✅ Recursive folder traversal (optional)  
 ✅ Folder exclusion rules (e.g., `.git`, `target`)  
@@ -59,8 +60,7 @@ cargo build --release
 | `rfd`           | Native file/folder picker                   |
 | `clipboard-win` | Clipboard access (Windows-only)             |
 | `windows`       | Win32 bindings (`GetCursorPos`, etc.)       |
-| `winit`         | GUI integration, window event loop          |
-| `serde`         | JSON serialization for preset storage       |
+| `serde`         | JSON serialization for preset + filetypes   |
 
 ---
 
@@ -73,7 +73,7 @@ cargo build --release
 
 ### GUI Actions  
 - Select directory containing source files  
-- Choose filetype mode (Rust, JSON, AHK, etc.)  
+- Choose or manage filetype groups (Rust, JSON, Web, etc.)  
 - Enable recursion and ignore folders if needed  
 - Add manual instructions or select a preset  
 - Output is written to `tags_output.txt`  
@@ -86,7 +86,7 @@ cargo build --release
 ```mermaid
 graph TD;
     A[Start] --> B[Open GUI]
-    B --> C[Select Directory & File Mode]
+    B --> C[Select Directory & File Type Group]
     C --> D[Enable Recursive Search?]
     D -->|Yes| E[Setup Ignore Folder List]
     D -->|No| F[Proceed]
@@ -142,6 +142,18 @@ Includes examples like:
 - Custom slots (`Button 3–5`) for expansion
 
 Presets are stored in `presets.json` and can be fully managed via the GUI.
+
+---
+
+## 🧩 File Type Groups
+
+Manage which file extensions to include via editable file groups.  
+Stored in `filetypes.json`, managed in GUI under **Manage File Types**.
+
+Examples:
+- **Rust** → `["rs"]`  
+- **Web** → `["html", "css", "js"]`  
+- **JSON & Config** → `["json", "ron", "toml"]`
 
 ---
 
