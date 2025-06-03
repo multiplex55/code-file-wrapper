@@ -104,11 +104,16 @@ pub fn write_folder_tags(
             if path.is_file() && is_human_readable(&path, valid_exts) {
                 if let Ok(relative_path) = path.strip_prefix(dir) {
                     if let Some(rel_str) = relative_path.to_str() {
-                        let mut contents = String::new();
-                        File::open(&path)?.read_to_string(&mut contents)?;
-                        writeln!(output, "<{}>", rel_str)?;
-                        writeln!(output, "{}", contents)?;
-                        writeln!(output, "</{}>\n", rel_str)?;
+                    match std::fs::read_to_string(&path) {
+                        Ok(contents) => {
+                            writeln!(output, "<{}>", rel_str)?;
+                            writeln!(output, "{}", contents)?;
+                            writeln!(output, "</{}>\n", rel_str)?;
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️ Skipping {:?}: {}", path, e);
+                        }
+                    }
                     }
                 }
             }
@@ -317,11 +322,16 @@ fn write_folder_tags_recursive(
         } else if path.is_file() && is_human_readable(&path, valid_exts) {
             if let Ok(relative_path) = path.strip_prefix(root_dir) {
                 if let Some(rel_str) = relative_path.to_str() {
-                    let mut contents = String::new();
-                    File::open(&path)?.read_to_string(&mut contents)?;
-                    writeln!(output, "<{}>", rel_str)?;
-                    writeln!(output, "{}", contents)?;
-                    writeln!(output, "</{}>\n", rel_str)?;
+                    match std::fs::read_to_string(&path) {
+                        Ok(contents) => {
+                            writeln!(output, "<{}>", rel_str)?;
+                            writeln!(output, "{}", contents)?;
+                            writeln!(output, "</{}>\n", rel_str)?;
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️ Skipping {:?}: {}", path, e);
+                        }
+                    }
                 }
             }
         }
