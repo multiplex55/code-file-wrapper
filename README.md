@@ -18,7 +18,7 @@
 - **Latest Release:** `1.1.0`  
 - **Author:** `Multiplex55`  
 - **License:** MIT  
-- **Platform:** 🖥 Windows Only  
+- **Platform:** 🖥 Windows and Linux
 
 ---
 
