@@ -21,7 +21,7 @@
 //! # Output
 //! - Generates or updates `tags_output.txt`.
 
-#![cfg_attr(windows, windows_subsystem = "windows")]
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod file_ops;
 mod filetypes;
 mod gui;
@@ -36,6 +36,11 @@ use crate::utils::{copy_to_clipboard, get_cursor_position};
 use eframe::egui;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::path::PathBuf;
+
+#[cfg(windows)]
+const OPEN_COMMAND: &str = "notepad";
+#[cfg(not(windows))]
+const OPEN_COMMAND: &str = "xdg-open";
 
 /// The main entry point of the application.
 ///
@@ -70,7 +75,7 @@ use std::path::PathBuf;
 /// - Optionally spawns Notepad (`notepad.exe`) to view the output.
 ///
 /// # Notes
-/// - Runs only on Windows (clipboard and dialog support).
+/// - Runs on Windows and Linux (clipboard and dialog support are available).
 /// - Relies on GUI state to be collected before file operations.
 /// - Uses structured JSON files for storing user presets and file type modes.
 /// - Always exits cleanly via `std::process::exit(0)` or `exit(1)`.
@@ -169,7 +174,7 @@ fn main() {
             .show();
 
         if result == MessageDialogResult::Yes {
-            if let Err(e) = std::process::Command::new("notepad")
+            if let Err(e) = std::process::Command::new(OPEN_COMMAND)
                 .arg("tags_output.txt")
                 .spawn()
             {
