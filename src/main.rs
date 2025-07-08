@@ -21,7 +21,7 @@
 //! # Output
 //! - Generates or updates `tags_output.txt`.
 
-#![windows_subsystem = "windows"]
+#![cfg_attr(windows, windows_subsystem = "windows")]
 mod file_ops;
 mod filetypes;
 mod gui;

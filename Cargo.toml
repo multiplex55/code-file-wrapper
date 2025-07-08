@@ -20,5 +20,5 @@ serde_json = "1.0"
         "Win32_UI_WindowsAndMessaging"
     ]}
 
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(not(windows))'.dependencies]
     arboard = "3"

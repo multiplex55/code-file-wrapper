@@ -4,11 +4,11 @@
 //! primarily for system-level tasks such as clipboard interaction and cursor positioning.
 //!
 //! # Contents
-//! - [`copy_to_clipboard`]: Copies the contents of a file to the Windows clipboard as Unicode text.
+//! - [`copy_to_clipboard`]: Copies the contents of a file to the system clipboard.
 //! - [`get_cursor_position`]: Retrieves the current global mouse cursor position (screen coordinates).
 //!
 //! # Platform Compatibility
-//! - This module is **Windows-only** due to its use of the Win32 API (`clipboard-win` and `windows` crates).
+//! - Supports **Windows** (Win32 APIs + `clipboard-win`) and **Linux** (via the `arboard` crate).
 //!
 //! # Use Cases
 //! - GUI positioning based on current cursor location.
@@ -18,11 +18,14 @@
 //! - Functions in this module are designed to fail gracefully and never panic.
 //! - They are safe to call from both GUI and CLI contexts.
 
+#[cfg(windows)]
 use clipboard_win::{formats, Clipboard, Setter};
+#[cfg(not(windows))]
+use arboard::Clipboard;
 use std::fs::read_to_string;
 use std::io;
 
-/// Copies the contents of a file into the Windows system clipboard as Unicode text.
+/// Copies the contents of a file into the system clipboard.
 ///
 /// # Parameters
 /// - `file_path`: The path to the file whose contents should be copied to the clipboard.
@@ -36,15 +39,16 @@ use std::io;
 ///
 /// # Behavior
 /// - Reads the entire file as a UTF-8 string.
-/// - Opens the clipboard using `clipboard-win`, retrying up to 10 times (to account for potential contention).
-/// - Writes the contents to the clipboard in Unicode (UTF-16) format.
+/// - On Windows, uses `clipboard-win` and writes UTF-16 text.
+/// - On Linux, uses the `arboard` crate and writes UTF-8 text.
 ///
 /// # Panics
 /// - This function does not panic under normal conditions.
 /// - Internal panics may only occur if the `clipboard-win` crate encounters a critical system error (extremely rare).
 ///
 /// # Notes
-/// - This function is **Windows-only**. It uses the `clipboard-win` crate, which wraps native Win32 clipboard APIs.
+/// - On Windows the clipboard is accessed via `clipboard-win`.
+/// - On Linux the clipboard is accessed via `arboard`.
 /// - If the file is empty, the clipboard will be set to an empty string.
 /// - Any previous clipboard contents will be overwritten.
 /// - Retrying clipboard access helps avoid issues where another app (like a browser or editor) temporarily locks it.
@@ -58,6 +62,7 @@ use std::io;
 /// copy_to_clipboard("tags_output.txt")?;
 /// println!("Copied tags_output.txt to clipboard.");
 /// ```
+#[cfg(windows)]
 pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
     let file_contents = read_to_string(file_path)?;
 
@@ -71,13 +76,27 @@ pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(not(windows))]
+pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
+    let file_contents = read_to_string(file_path)?;
+
+    let mut clipboard = Clipboard::new()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+    clipboard
+        .set_text(file_contents)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+    Ok(())
+}
+
 /// Retrieves the current position of the mouse cursor on the screen.
 ///
 /// # Returns
 /// - `Some((x, y))`: A tuple of screen coordinates (in pixels) if successful:
 ///   - `x`: Horizontal screen position.
 ///   - `y`: Vertical screen position.
-/// - `None`: If the call to the Windows API fails.
+/// - `None`: If the position cannot be retrieved.
 ///
 /// # Behavior
 /// - Uses the Win32 API function `GetCursorPos` via the `windows` crate to get the global screen coordinates.
@@ -85,8 +104,8 @@ pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
 /// - The coordinates are absolute (relative to the screen), not relative to any window or control.
 ///
 /// # Platform Support
-/// - **Supported**: Windows only.
-/// - **Unsupported**: Will not compile on non-Windows systems unless conditional compilation is added.
+/// - **Windows**: Uses the Win32 `GetCursorPos` API.
+/// - **Linux**: Currently returns `None`.
 ///
 /// # Panics
 /// - This function does **not** panic.
@@ -108,6 +127,7 @@ pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
 /// # Notes
 /// - Returns coordinates in physical screen pixels — no DPI scaling is applied.
 /// - In multi-monitor setups, coordinates reflect the full desktop space and may be negative if the primary screen is not at (0,0).
+#[cfg(windows)]
 pub fn get_cursor_position() -> Option<(f32, f32)> {
     use windows::Win32::Foundation::POINT;
     use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
@@ -118,5 +138,10 @@ pub fn get_cursor_position() -> Option<(f32, f32)> {
             return Some((point.x as f32, point.y as f32));
         }
     }
+    None
+}
+
+#[cfg(not(windows))]
+pub fn get_cursor_position() -> Option<(f32, f32)> {
     None
 }
