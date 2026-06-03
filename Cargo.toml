@@ -22,3 +22,6 @@ serde_json = "1.0"
 
 [target.'cfg(not(windows))'.dependencies]
     arboard = "3"
+
+[dev-dependencies]
+tempfile = "3"
