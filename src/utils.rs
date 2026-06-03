@@ -18,10 +18,10 @@
 //! - Functions in this module are designed to fail gracefully and never panic.
 //! - They are safe to call from both GUI and CLI contexts.
 
-#[cfg(windows)]
-use clipboard_win::{formats, Clipboard, Setter};
 #[cfg(not(windows))]
 use arboard::Clipboard;
+#[cfg(windows)]
+use clipboard_win::{formats, Clipboard, Setter};
 use std::fs::read_to_string;
 use std::io;
 
@@ -80,8 +80,8 @@ pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
 pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {
     let file_contents = read_to_string(file_path)?;
 
-    let mut clipboard = Clipboard::new()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+    let mut clipboard =
+        Clipboard::new().map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
     clipboard
         .set_text(file_contents)
