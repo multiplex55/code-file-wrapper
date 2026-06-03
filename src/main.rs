@@ -13,7 +13,7 @@
 //! - [`mode_selection_gui`]: Wrapper that runs the GUI and returns user selections.
 //!
 //! # Dependencies
-//! - Relies on `file_ops` for tag generation.
+//! - Relies on `generation` for tag generation orchestration.
 //! - Relies on `gui` for user input.
 //! - Relies on `utils` for clipboard and cursor behavior.
 //! - Relies on `presets` for saved preset data.
@@ -24,18 +24,19 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod file_ops;
 mod filetypes;
+mod generation;
 mod gui;
 mod presets;
 mod utils;
 
-use crate::file_ops::{append_additional_commands, write_folder_tags};
 use crate::filetypes::{get_filetypes, FileTypeGroup};
+use crate::generation::{generate_tag_output, TagGenerationRequest};
 use crate::gui::ModeSelector;
-use crate::utils::{copy_to_clipboard, get_cursor_position};
+use crate::utils::get_cursor_position;
 
 use eframe::egui;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[cfg(windows)]
 const OPEN_COMMAND: &str = "notepad";
@@ -54,9 +55,9 @@ const OPEN_COMMAND: &str = "xdg-open";
 /// - Loads initial file type groups from disk (or uses defaults).
 /// - Displays the GUI to collect user input (directory, file type, recursion, etc.).
 /// - Validates the user input and exits with a warning if invalid.
-/// - Calls [`write_folder_tags`] to process matching files in the selected directory.
-/// - Appends any user-supplied commands and preset commands to the output file.
-/// - Copies the file to the clipboard if requested, or optionally opens it in Notepad.
+/// - Calls [`generate_tag_output`] to process matching files in the selected directory.
+/// - Supplies user-entered and preset commands to the shared generation layer.
+/// - Prompts to open the generated file when clipboard copy is disabled.
 ///
 /// # Panics
 /// - Does not explicitly panic, but will `exit(1)` if:
@@ -71,8 +72,8 @@ const OPEN_COMMAND: &str = "xdg-open";
 ///
 /// # Side Effects
 /// - Overwrites or creates `tags_output.txt` in the working directory.
-/// - Optionally modifies the system clipboard.
-/// - Optionally spawns Notepad (`notepad.exe`) to view the output.
+/// - The generation layer optionally modifies the system clipboard.
+/// - Optionally spawns the platform file opener to view the output.
 ///
 /// # Notes
 /// - Runs on Windows and Linux (clipboard and dialog support are available).
@@ -89,9 +90,7 @@ const OPEN_COMMAND: &str = "xdg-open";
 ///
 /// # Related
 /// - [`mode_selection_gui`] – Launches the GUI and gathers input.
-/// - [`write_folder_tags`] – Handles directory traversal and XML tag output.
-/// - [`append_additional_commands`] – Adds user/preset commands to the final output.
-/// - [`copy_to_clipboard`] – Sends the output to the Windows clipboard.
+/// - [`generate_tag_output`] – Handles shared tagged output generation.
 fn main() {
     let initial_file_type_groups = get_filetypes();
     let cursor_position = get_cursor_position();
@@ -114,11 +113,6 @@ fn main() {
 
     println!("📂 User selected directory: {:?}", dir);
 
-    if !dir.is_dir() {
-        eprintln!("❌ ERROR: Selected path is not a directory.");
-        std::process::exit(1);
-    }
-
     let Some(group) = selected_type_index.and_then(|i| file_type_groups.get(i)) else {
         eprintln!("⚠️ No file type group selected. Exiting.");
         std::process::exit(0);
@@ -130,49 +124,28 @@ fn main() {
         .filter(|s| !s.is_empty())
         .collect();
 
-    let output_path = Path::new("tags_output.txt");
+    let open_after = !enable_clipboard_copy;
+    let request = TagGenerationRequest {
+        root_dir: dir,
+        extensions: group.extensions.clone(),
+        recursive: enable_recursive_search,
+        ignored_folders,
+        output_path: PathBuf::from("tags_output.txt"),
+        additional_commands,
+        preset_texts,
+        copy_to_clipboard: enable_clipboard_copy,
+        open_after,
+    };
 
-    if let Err(e) = write_folder_tags(
-        &dir,
-        &group.extensions,
-        enable_recursive_search,
-        &ignored_folders,
-        output_path,
-    ) {
-        eprintln!("❌ ERROR: Could not write folder tags: {}", e);
-        std::process::exit(1);
-    }
-
-    let mut combined_additional = String::new();
-
-    for preset_text in &preset_texts {
-        combined_additional.push('\n');
-        combined_additional.push_str(preset_text.trim());
-        combined_additional.push('\n');
-    }
-
-    if !additional_commands.trim().is_empty() {
-        combined_additional.push('\n');
-        combined_additional.push_str(additional_commands.trim());
-        combined_additional.push('\n');
-    }
-
-    let output_path_string = output_path.to_string_lossy();
-
-    if !combined_additional.trim().is_empty() {
-        if let Err(e) = append_additional_commands(&output_path_string, &combined_additional) {
-            eprintln!(
-                "❌ ERROR: Could not append combined additional commands: {}",
-                e
-            );
+    let summary = match generate_tag_output(request) {
+        Ok(summary) => summary,
+        Err(e) => {
+            eprintln!("❌ ERROR: Could not generate tag output: {}", e);
+            std::process::exit(1);
         }
-    }
+    };
 
-    if enable_clipboard_copy {
-        if let Err(e) = copy_to_clipboard(&output_path_string) {
-            eprintln!("❌ ERROR: Could not copy to clipboard: {}", e);
-        }
-    } else {
+    if open_after {
         let result = MessageDialog::new()
             .set_title("Open Output File?")
             .set_description("Would you like to open the generated output file?")
@@ -182,7 +155,7 @@ fn main() {
 
         if result == MessageDialogResult::Yes {
             if let Err(e) = std::process::Command::new(OPEN_COMMAND)
-                .arg(output_path)
+                .arg(&summary.output_path)
                 .spawn()
             {
                 eprintln!("❌ ERROR: Failed to open output file: {}", e);
