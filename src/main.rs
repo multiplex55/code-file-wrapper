@@ -35,7 +35,7 @@ use crate::utils::{copy_to_clipboard, get_cursor_position};
 
 use eframe::egui;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[cfg(windows)]
 const OPEN_COMMAND: &str = "notepad";
@@ -124,16 +124,21 @@ fn main() {
         std::process::exit(0);
     };
 
-    let valid_exts: Vec<&str> = group.extensions.iter().map(String::as_str).collect();
-
     let ignored_folders: Vec<String> = ignored_folders
         .lines()
         .map(|s| s.trim().to_lowercase())
         .filter(|s| !s.is_empty())
         .collect();
 
-    if let Err(e) = write_folder_tags(&dir, &valid_exts, enable_recursive_search, &ignored_folders)
-    {
+    let output_path = Path::new("tags_output.txt");
+
+    if let Err(e) = write_folder_tags(
+        &dir,
+        &group.extensions,
+        enable_recursive_search,
+        &ignored_folders,
+        output_path,
+    ) {
         eprintln!("❌ ERROR: Could not write folder tags: {}", e);
         std::process::exit(1);
     }
@@ -152,8 +157,10 @@ fn main() {
         combined_additional.push('\n');
     }
 
+    let output_path_string = output_path.to_string_lossy();
+
     if !combined_additional.trim().is_empty() {
-        if let Err(e) = append_additional_commands("tags_output.txt", &combined_additional) {
+        if let Err(e) = append_additional_commands(&output_path_string, &combined_additional) {
             eprintln!(
                 "❌ ERROR: Could not append combined additional commands: {}",
                 e
@@ -162,23 +169,23 @@ fn main() {
     }
 
     if enable_clipboard_copy {
-        if let Err(e) = copy_to_clipboard("tags_output.txt") {
+        if let Err(e) = copy_to_clipboard(&output_path_string) {
             eprintln!("❌ ERROR: Could not copy to clipboard: {}", e);
         }
     } else {
         let result = MessageDialog::new()
             .set_title("Open Output File?")
-            .set_description("Would you like to open the generated tags_output.txt file?")
+            .set_description("Would you like to open the generated output file?")
             .set_buttons(MessageButtons::YesNo)
             .set_level(MessageLevel::Info)
             .show();
 
         if result == MessageDialogResult::Yes {
             if let Err(e) = std::process::Command::new(OPEN_COMMAND)
-                .arg("tags_output.txt")
+                .arg(output_path)
                 .spawn()
             {
-                eprintln!("❌ ERROR: Failed to open tags_output.txt: {}", e);
+                eprintln!("❌ ERROR: Failed to open output file: {}", e);
             }
         }
     }
