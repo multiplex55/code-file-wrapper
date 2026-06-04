@@ -313,12 +313,14 @@ mod tests {
     }
 
     #[test]
-    fn build_run_request_combines_and_deduplicates_extensions() {
+    fn build_run_request_combines_and_deduplicates_extensions() -> std::io::Result<()> {
+        let temp = tempdir()?;
+        let dir = temp.path().to_str().expect("temp path is UTF-8");
         let args = Cli::try_parse_from([
             "code-file-wrapper",
             "run",
             "--dir",
-            ".",
+            dir,
             "--file-type",
             "Rust",
             "--ext",
@@ -335,11 +337,15 @@ mod tests {
 
         assert_eq!(built.extensions_used, vec!["rs", "toml"]);
         assert_eq!(built.request.extensions, vec!["rs", "toml"]);
+        assert_eq!(built.request.root_dir, temp.path());
+        Ok(())
     }
 
     #[test]
-    fn build_run_request_requires_extensions() {
-        let args = Cli::try_parse_from(["code-file-wrapper", "run", "--dir", "."])
+    fn build_run_request_requires_file_type_or_ext_before_generation() -> std::io::Result<()> {
+        let temp = tempdir()?;
+        let dir = temp.path().to_str().expect("temp path is UTF-8");
+        let args = Cli::try_parse_from(["code-file-wrapper", "run", "--dir", dir])
             .expect("CLI should parse");
         let Some(Command::Run(args)) = args.command else {
             panic!("expected run command");
@@ -348,6 +354,33 @@ mod tests {
         let error = build_run_request(args, &rust_group(), &[]).expect_err("expected error");
 
         assert!(error.contains("Provide --file-type"));
+        assert!(error.contains("--ext"));
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_file_type_lists_available_groups() -> std::io::Result<()> {
+        let temp = tempdir()?;
+        let dir = temp.path().to_str().expect("temp path is UTF-8");
+        let args = Cli::try_parse_from([
+            "code-file-wrapper",
+            "run",
+            "--dir",
+            dir,
+            "--file-type",
+            "Go",
+        ])
+        .expect("CLI should parse");
+        let Some(Command::Run(args)) = args.command else {
+            panic!("expected run command");
+        };
+
+        let error = build_run_request(args, &rust_group(), &[]).expect_err("expected error");
+
+        assert!(error.contains("Unknown file type group 'Go'"));
+        assert!(error.contains("Available file type groups"));
+        assert!(error.contains("- Rust"));
+        Ok(())
     }
 
     #[test]
@@ -355,11 +388,12 @@ mod tests {
         let temp = tempdir()?;
         let additional_path = temp.path().join("additional.txt");
         fs::write(&additional_path, "from file")?;
+        let dir = temp.path().to_str().expect("temp path is UTF-8");
         let args = Cli::try_parse_from([
             "code-file-wrapper",
             "run",
             "--dir",
-            ".",
+            dir,
             "--ext",
             "rs",
             "--additional-file",
@@ -380,11 +414,13 @@ mod tests {
 
     #[test]
     fn unknown_preset_lists_available_presets() {
+        let temp = tempdir().expect("tempdir should be created");
+        let dir = temp.path().to_str().expect("temp path is UTF-8");
         let args = Cli::try_parse_from([
             "code-file-wrapper",
             "run",
             "--dir",
-            ".",
+            dir,
             "--ext",
             "rs",
             "--preset",

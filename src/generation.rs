@@ -125,20 +125,57 @@ mod tests {
     }
 
     #[test]
-    fn generate_tag_output_uses_custom_output_path() -> std::io::Result<()> {
+    fn generate_tag_output_uses_custom_output_path_without_tags_output_txt() -> std::io::Result<()>
+    {
         let temp = tempdir()?;
-        let root = temp.path().to_path_buf();
-        fs::write(root.join("main.rs"), "fn main() {}")?;
-        let output_path = root.join("custom-tags.txt");
+        let project = temp.path().join("project");
+        fs::create_dir_all(project.join("src"))?;
+        fs::write(project.join("src").join("main.rs"), "fn main() {}")?;
+        let output_path = temp.path().join("project_context.txt");
+        let mut request = request(project.clone(), output_path.clone());
+        request.recursive = true;
 
-        let summary = generate_tag_output(request(root.clone(), output_path.clone()))?;
+        let summary = generate_tag_output(request)?;
 
         assert_eq!(summary.output_path, output_path);
         assert_eq!(summary.files_written, 1);
-        assert!(summary.files_skipped == 0);
+        assert_eq!(summary.files_skipped, 0);
         assert!(output_path.exists());
-        assert!(!root.join("tags_output.txt").exists());
-        assert!(fs::read_to_string(output_path)?.contains("<main.rs>"));
+        assert!(!temp.path().join("tags_output.txt").exists());
+        assert!(!project.join("tags_output.txt").exists());
+        let output = fs::read_to_string(output_path)?;
+        assert!(output.contains("main.rs"));
+        assert!(output.contains("fn main() {}"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn generate_tag_output_honors_recursive_and_ignore_options() -> std::io::Result<()> {
+        let temp = tempdir()?;
+        let project = temp.path().join("project");
+        fs::create_dir_all(project.join("src"))?;
+        fs::write(project.join("src").join("main.rs"), "fn main() {}")?;
+        fs::write(project.join("src").join("lib.rs"), "pub fn lib() {}")?;
+        fs::create_dir_all(project.join("target"))?;
+        fs::write(
+            project.join("target").join("generated.rs"),
+            "pub fn generated() {}",
+        )?;
+        let output_path = temp.path().join("context.txt");
+        let mut request = request(project, output_path.clone());
+        request.recursive = true;
+        request.ignored_folders = vec!["target".to_string()];
+
+        let summary = generate_tag_output(request)?;
+
+        assert_eq!(summary.files_written, 2);
+        assert!(summary.recursive);
+        let output = fs::read_to_string(output_path)?;
+        assert!(output.contains("main.rs"));
+        assert!(output.contains("lib.rs"));
+        assert!(!output.contains("generated.rs"));
+        assert!(!output.contains("pub fn generated() {}"));
 
         Ok(())
     }
