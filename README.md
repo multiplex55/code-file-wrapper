@@ -79,6 +79,12 @@ cargo build --release
 - Output is written to `tags_output.txt`  
 - Optionally copies output to your clipboard  
 
+### Windows CLI and GUI Tradeoff
+
+The Windows build uses the normal console subsystem so CLI output and errors are visible in PowerShell. This means commands such as `code-file-wrapper list-file-types` print their results normally, and invalid CLI invocations show errors with non-zero exit codes.
+
+The tradeoff is that launching the GUI build directly on Windows may show a console window alongside the graphical interface. A future two-binary design could provide `code-file-wrapper.exe` for CLI use and `code-file-wrapper-gui.exe` with `windows_subsystem = "windows"` for GUI-only launch without a console window.
+
 ---
 
 ## 📜 How It Works
