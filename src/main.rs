@@ -19,7 +19,7 @@
 //! - Relies on `presets` for saved preset data.
 //!
 //! # Output
-//! - Generates or updates `tags_output.txt`.
+//! - Generates or updates the selected output file.
 
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 mod cli;
@@ -98,6 +98,7 @@ fn run_gui_flow() {
         selected_dir,
         selected_type_index,
         enable_clipboard_copy,
+        output_path,
         additional_commands,
         preset_texts,
         enable_recursive_search,
@@ -128,7 +129,7 @@ fn run_gui_flow() {
         extensions: group.extensions.clone(),
         recursive: enable_recursive_search,
         ignored_folders,
-        output_path: PathBuf::from("tags_output.txt"),
+        output_path: PathBuf::from(output_path),
         additional_commands,
         preset_texts,
         copy_to_clipboard: enable_clipboard_copy,
@@ -146,7 +147,10 @@ fn run_gui_flow() {
     if open_after {
         let result = MessageDialog::new()
             .set_title("Open Output File?")
-            .set_description("Would you like to open the generated output file?")
+            .set_description(format!(
+                "Would you like to open the generated output file?\n\n{}",
+                summary.output_path.display()
+            ))
             .set_buttons(MessageButtons::YesNo)
             .set_level(MessageLevel::Info)
             .show();
@@ -191,6 +195,7 @@ fn open_output_file(summary: &GenerationSummary) {
 /// - Target directory
 /// - File type group (by extension)
 /// - Whether to copy results to the clipboard
+/// - Output file path
 /// - Additional instructional or preset commands
 /// - Recursive folder scanning options and ignored folders
 ///
@@ -204,6 +209,7 @@ fn open_output_file(summary: &GenerationSummary) {
 /// - `Option<PathBuf>`: The selected directory path.
 /// - `Option<usize>`: Index of the selected file type group, or `None` if not selected.
 /// - `bool`: Whether to copy output to the clipboard after generation.
+/// - `String`: Output file path.
 /// - `String`: Custom text commands to be appended to the output file.
 /// - `Vec<String>`: Collected preset command texts selected by the user.
 /// - `bool`: Whether recursive directory search is enabled.
@@ -230,7 +236,7 @@ fn open_output_file(summary: &GenerationSummary) {
 /// ```rust
 /// let groups = get_filetypes();
 /// let cursor = get_cursor_position();
-/// let (groups, dir, mode, clipboard, commands, presets, recursive, ignored) =
+/// let (groups, dir, mode, clipboard, output, commands, presets, recursive, ignored) =
 ///     mode_selection_gui(groups, cursor);
 /// ```
 ///
@@ -245,6 +251,7 @@ fn mode_selection_gui(
     Option<PathBuf>, // selected_dir
     Option<usize>,   // selected file type group index
     bool,            // clipboard
+    String,          // output path
     String,          // additional commands
     Vec<String>,     // preset texts
     bool,            // recursive
@@ -253,6 +260,7 @@ fn mode_selection_gui(
     let mut local_file_type_groups = file_type_groups;
     let mut selected_mode: Option<usize> = None;
     let mut enable_clipboard_copy = false;
+    let mut output_path = "tags_output.txt".to_string();
     let mut additional_commands = String::new();
     let mut selected_dir: Option<PathBuf> = None;
     let mut preset_texts = Vec::new();
@@ -266,6 +274,7 @@ fn mode_selection_gui(
         &mut local_file_type_groups,
         &mut selected_mode,
         &mut enable_clipboard_copy,
+        &mut output_path,
         &mut additional_commands,
         &mut selected_dir,
         &mut preset_texts,
@@ -293,6 +302,7 @@ fn mode_selection_gui(
         selected_dir,
         selected_mode,
         enable_clipboard_copy,
+        output_path,
         additional_commands,
         preset_texts,
         enable_recursive_search,
