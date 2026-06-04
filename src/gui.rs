@@ -30,7 +30,7 @@ use crate::presets::{get_presets, PresetCommand};
 use eframe::egui;
 use rfd::FileDialog;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Holds the interactive state and logic for the main GUI window.
 ///
@@ -43,6 +43,7 @@ use std::path::PathBuf;
 /// - `modes`: All available file type modes (e.g., Rust, JSON).
 /// - `selected_mode`: Currently selected file type mode (shared mutable).
 /// - `enable_clipboard_copy`: Whether the clipboard should be updated after output is generated.
+/// - `output_path`: Path where the generated output file should be written.
 /// - `additional_commands`: Multiline string entered by the user to append to the output.
 /// - `selected_dir`: The selected folder path for file processing.
 /// - `preset_texts`: Output accumulator for selected presets (shared mutable).
@@ -67,6 +68,7 @@ pub struct ModeSelector<'a> {
     file_type_groups: &'a mut Vec<FileTypeGroup>,
     selected_type_index: &'a mut Option<usize>,
     enable_clipboard_copy: &'a mut bool,
+    output_path: &'a mut String,
     additional_commands: &'a mut String,
     selected_dir: &'a mut Option<PathBuf>,
     preset_texts: &'a mut Vec<String>,
@@ -88,6 +90,7 @@ impl<'a> ModeSelector<'a> {
         file_type_groups: &'a mut Vec<FileTypeGroup>,
         selected_type_index: &'a mut Option<usize>,
         enable_clipboard_copy: &'a mut bool,
+        output_path: &'a mut String,
         additional_commands: &'a mut String,
         selected_dir: &'a mut Option<PathBuf>,
         preset_texts: &'a mut Vec<String>,
@@ -103,6 +106,7 @@ impl<'a> ModeSelector<'a> {
             file_type_groups,
             selected_type_index,
             enable_clipboard_copy,
+            output_path,
             additional_commands,
             selected_dir,
             preset_texts,
@@ -118,6 +122,25 @@ impl<'a> ModeSelector<'a> {
             joined_extensions,
         }
     }
+}
+
+/// Validates a user-entered output path from the GUI.
+///
+/// Empty and whitespace-only input is rejected, as is any path that already
+/// exists as a directory. Relative filenames and absolute paths are accepted.
+pub fn validate_output_path_input(input: &str) -> Result<PathBuf, String> {
+    let trimmed = input.trim();
+
+    if trimmed.is_empty() {
+        return Err("Please enter an output file path.".to_string());
+    }
+
+    let path = Path::new(trimmed);
+    if path.is_dir() {
+        return Err("Output path must not be an existing directory.".to_string());
+    }
+
+    Ok(path.to_path_buf())
 }
 
 impl eframe::App for ModeSelector<'_> {
@@ -169,6 +192,7 @@ impl eframe::App for ModeSelector<'_> {
     ///   - `selected_dir`
     ///   - `selected_mode`
     ///   - `preset_texts`
+    ///   - `output_path`
     ///   - `additional_commands`
     ///   - `enable_clipboard_copy`
     ///   - `enable_recursive_search`
@@ -249,6 +273,14 @@ impl eframe::App for ModeSelector<'_> {
                 self.enable_recursive_search,
                 "Enable recursive directory search",
             );
+
+            ui.horizontal(|ui| {
+                ui.label("Output File:");
+                ui.add(
+                    egui::TextEdit::singleline(self.output_path)
+                        .desired_width(ui.available_width()),
+                );
+            });
 
             if *self.enable_recursive_search {
                 ui.group(|ui| {
@@ -338,7 +370,10 @@ impl eframe::App for ModeSelector<'_> {
                     self.warning_message = "⚠️ Please select a directory before proceeding!".into();
                 } else if self.selected_type_index.is_none() {
                     self.warning_message = "⚠️ Please select a file type before proceeding!".into();
+                } else if let Err(message) = validate_output_path_input(self.output_path) {
+                    self.warning_message = format!("⚠️ {message}");
                 } else {
+                    *self.output_path = self.output_path.trim().to_string();
                     // Push selected preset text
                     for preset in &self.presets {
                         if self.selected_presets.contains(&preset.name) {
@@ -552,5 +587,54 @@ impl eframe::App for ModeSelector<'_> {
                 }
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_output_path_input;
+    use tempfile::tempdir;
+
+    #[test]
+    fn validate_output_path_rejects_empty_input() {
+        let error = validate_output_path_input("").expect_err("expected error");
+
+        assert!(error.contains("output file path"));
+    }
+
+    #[test]
+    fn validate_output_path_rejects_whitespace_only_input() {
+        let error = validate_output_path_input(" \n\t  ").expect_err("expected error");
+
+        assert!(error.contains("output file path"));
+    }
+
+    #[test]
+    fn validate_output_path_accepts_relative_filename() {
+        let path = validate_output_path_input("mouse_mover_context.txt").expect("valid path");
+
+        assert_eq!(path, std::path::PathBuf::from("mouse_mover_context.txt"));
+    }
+
+    #[test]
+    fn validate_output_path_accepts_absolute_temp_path() -> std::io::Result<()> {
+        let temp = tempdir()?;
+        let output_path = temp.path().join("nested-output.txt");
+
+        let path = validate_output_path_input(&output_path.to_string_lossy()).expect("valid path");
+
+        assert_eq!(path, output_path);
+        Ok(())
+    }
+
+    #[test]
+    fn validate_output_path_rejects_existing_directory_path() -> std::io::Result<()> {
+        let temp = tempdir()?;
+
+        let error =
+            validate_output_path_input(&temp.path().to_string_lossy()).expect_err("expected error");
+
+        assert!(error.contains("existing directory"));
+        Ok(())
     }
 }
