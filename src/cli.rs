@@ -20,8 +20,25 @@ pub enum Command {
     Gui,
     /// Generate output from command-line arguments.
     Run(RunArgs),
+    /// Generate output from a saved profile.
+    RunProfile { name: String },
+    /// Print saved run profiles.
+    ListProfiles,
+    /// Delete a saved run profile.
+    DeleteProfile { name: String },
+    /// Save a reusable run profile from command-line arguments.
+    SaveProfile(SaveProfileArgs),
     /// Print available file type groups from filetypes.json.
     ListFileTypes,
+}
+
+#[derive(Debug, Args)]
+pub struct SaveProfileArgs {
+    pub name: String,
+    #[arg(long)]
+    pub force: bool,
+    #[command(flatten)]
+    pub run: RunArgs,
 }
 
 #[derive(Debug, Args)]
@@ -61,6 +78,7 @@ pub fn build_run_request(
     file_type_groups: &[FileTypeGroup],
     presets: &[PresetCommand],
 ) -> Result<BuiltRunRequest, String> {
+    validate_run_directory(&args.dir)?;
     let extensions = resolve_extensions(&args, file_type_groups)?;
     let preset_texts = resolve_presets(&args.presets, presets)?;
     let additional_commands = resolve_additional_commands(
@@ -82,6 +100,17 @@ pub fn build_run_request(
             open_after: args.open,
         },
     })
+}
+
+fn validate_run_directory(dir: &PathBuf) -> Result<(), String> {
+    if !dir.is_dir() {
+        return Err(format!(
+            "Directory '{}' does not exist or is not a folder.",
+            dir.display()
+        ));
+    }
+
+    Ok(())
 }
 
 fn resolve_extensions(
@@ -162,7 +191,7 @@ fn format_available_presets(presets: &[PresetCommand]) -> String {
         .join("\n")
 }
 
-fn resolve_additional_commands(
+pub(crate) fn resolve_additional_commands(
     additional_commands_file: Option<&PathBuf>,
     additional_commands: Option<&str>,
 ) -> Result<String, String> {

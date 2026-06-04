@@ -27,6 +27,7 @@ mod filetypes;
 mod generation;
 mod gui;
 mod presets;
+mod profiles;
 mod utils;
 
 use crate::cli::{build_run_request, Cli, Command};
@@ -34,6 +35,10 @@ use crate::filetypes::{get_filetypes, FileTypeGroup};
 use crate::generation::{generate_tag_output, GenerationSummary, TagGenerationRequest};
 use crate::gui::ModeSelector;
 use crate::presets::get_presets;
+use crate::profiles::{
+    delete_profile, find_profile, load_profiles, profile_from_run_args, profile_to_run_request,
+    save_profile,
+};
 use crate::utils::get_cursor_position;
 
 use clap::Parser;
@@ -57,6 +62,40 @@ fn main() {
     match cli.command {
         None | Some(Command::Gui) => run_gui_flow(),
         Some(Command::ListFileTypes) => list_file_types(),
+        Some(Command::ListProfiles) => list_profiles(),
+        Some(Command::DeleteProfile { name }) => {
+            if let Err(error) = delete_profile(&name) {
+                eprintln!("❌ ERROR: {error}");
+                std::process::exit(1);
+            }
+            println!("✅ Deleted profile '{name}'.");
+            std::process::exit(0);
+        }
+        Some(Command::SaveProfile(args)) => {
+            let file_type_groups = get_filetypes();
+            let presets = get_presets();
+            let profile = match profile_from_run_args(args.name, args.run) {
+                Ok(profile) => profile,
+                Err(error) => {
+                    eprintln!("❌ ERROR: {error}");
+                    std::process::exit(1);
+                }
+            };
+
+            if let Err(error) = profile_to_run_request(&profile, &file_type_groups, &presets) {
+                eprintln!("❌ ERROR: {error}");
+                std::process::exit(1);
+            }
+
+            let profile_name = profile.name.clone();
+            if let Err(error) = save_profile(profile, args.force) {
+                eprintln!("❌ ERROR: {error}");
+                std::process::exit(1);
+            }
+            println!("✅ Saved profile '{profile_name}'.");
+            std::process::exit(0);
+        }
+        Some(Command::RunProfile { name }) => run_profile_command(&name),
         Some(Command::Run(args)) => {
             let file_type_groups = get_filetypes();
             let presets = get_presets();
@@ -68,24 +107,48 @@ fn main() {
                 }
             };
 
-            let open_after = built.request.open_after;
-            let extensions_used = built.extensions_used.clone();
-            let summary = match generate_tag_output(built.request) {
-                Ok(summary) => summary,
-                Err(e) => {
-                    eprintln!("❌ ERROR: Could not generate tag output: {}", e);
-                    std::process::exit(1);
-                }
-            };
-
-            if open_after {
-                open_output_file(&summary);
-            }
-
-            print_cli_summary(&summary, &extensions_used);
-            std::process::exit(0);
+            run_built_request(built);
         }
     }
+}
+
+fn run_profile_command(name: &str) -> ! {
+    let profiles = load_profiles();
+    let Some(profile) = find_profile(&profiles, name) else {
+        eprintln!("❌ ERROR: Profile '{name}' does not exist.");
+        std::process::exit(1);
+    };
+
+    let file_type_groups = get_filetypes();
+    let presets = get_presets();
+    let built = match profile_to_run_request(profile, &file_type_groups, &presets) {
+        Ok(built) => built,
+        Err(error) => {
+            eprintln!("❌ ERROR: {error}");
+            std::process::exit(1);
+        }
+    };
+
+    run_built_request(built);
+}
+
+fn run_built_request(built: crate::cli::BuiltRunRequest) -> ! {
+    let open_after = built.request.open_after;
+    let extensions_used = built.extensions_used.clone();
+    let summary = match generate_tag_output(built.request) {
+        Ok(summary) => summary,
+        Err(e) => {
+            eprintln!("❌ ERROR: Could not generate tag output: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    if open_after {
+        open_output_file(&summary);
+    }
+
+    print_cli_summary(&summary, &extensions_used);
+    std::process::exit(0);
 }
 
 fn run_gui_flow() {
@@ -160,6 +223,25 @@ fn run_gui_flow() {
     }
 
     std::process::exit(0);
+}
+
+fn list_profiles() {
+    let profiles = load_profiles();
+    if profiles.is_empty() {
+        println!("No profiles saved.");
+        return;
+    }
+
+    for profile in profiles {
+        let file_type = profile.file_type.as_deref().unwrap_or("custom extensions");
+        println!(
+            "{}: dir={} file-type={} output={}",
+            profile.name,
+            profile.dir.display(),
+            file_type,
+            profile.output.display()
+        );
+    }
 }
 
 fn list_file_types() {
