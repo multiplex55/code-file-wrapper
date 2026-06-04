@@ -23,7 +23,7 @@
 //! - Uses `eframe::run_native` to block execution until the user completes the selection.
 //! - Updates shared mutable state passed by reference from `main.rs`.
 
-use crate::filetypes::{get_filetypes, save_filetypes, FileTypeGroup};
+use crate::filetypes::{save_filetypes, FileTypeGroup};
 use crate::presets::save_presets;
 use crate::presets::{get_presets, PresetCommand};
 

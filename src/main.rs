@@ -22,6 +22,7 @@
 //! - Generates or updates `tags_output.txt`.
 
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
+mod cli;
 mod file_ops;
 mod filetypes;
 mod generation;
@@ -29,11 +30,14 @@ mod gui;
 mod presets;
 mod utils;
 
+use crate::cli::{build_run_request, Cli, Command};
 use crate::filetypes::{get_filetypes, FileTypeGroup};
-use crate::generation::{generate_tag_output, TagGenerationRequest};
+use crate::generation::{generate_tag_output, GenerationSummary, TagGenerationRequest};
 use crate::gui::ModeSelector;
+use crate::presets::get_presets;
 use crate::utils::get_cursor_position;
 
+use clap::Parser;
 use eframe::egui;
 use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::path::PathBuf;
@@ -45,53 +49,47 @@ const OPEN_COMMAND: &str = "xdg-open";
 
 /// The main entry point of the application.
 ///
-/// # Purpose
-/// Coordinates the entire program flow, from GUI input to file processing and clipboard interaction.
-///
-/// # Parameters
-/// None.
-///
-/// # Behavior
-/// - Loads initial file type groups from disk (or uses defaults).
-/// - Displays the GUI to collect user input (directory, file type, recursion, etc.).
-/// - Validates the user input and exits with a warning if invalid.
-/// - Calls [`generate_tag_output`] to process matching files in the selected directory.
-/// - Supplies user-entered and preset commands to the shared generation layer.
-/// - Prompts to open the generated file when clipboard copy is disabled.
-///
-/// # Panics
-/// - Does not explicitly panic, but will `exit(1)` if:
-///   - The selected path is not a directory.
-///   - `tags_output.txt` could not be written.
-///
-/// # Errors
-/// - Errors are logged to `stderr`, including:
-///   - Invalid directory selection.
-///   - File write failures.
-///   - Clipboard failures or inability to launch Notepad.
-///
-/// # Side Effects
-/// - Overwrites or creates `tags_output.txt` in the working directory.
-/// - The generation layer optionally modifies the system clipboard.
-/// - Optionally spawns the platform file opener to view the output.
-///
-/// # Notes
-/// - Runs on Windows and Linux (clipboard and dialog support are available).
-/// - Relies on GUI state to be collected before file operations.
-/// - Uses structured JSON files for storing user presets and file type modes.
-/// - Always exits cleanly via `std::process::exit(0)` or `exit(1)`.
-///
-/// # Example
-/// ```rust
-/// fn main() {
-///     // Triggers GUI, processes files, writes output, etc.
-/// }
-/// ```
-///
-/// # Related
-/// - [`mode_selection_gui`] – Launches the GUI and gathers input.
-/// - [`generate_tag_output`] – Handles shared tagged output generation.
+/// Parses command-line arguments first. With no subcommand, or with `gui`, it
+/// launches the existing graphical flow. Other subcommands run non-interactive
+/// CLI tasks and exit with an appropriate status code.
 fn main() {
+    let cli = Cli::parse();
+
+    match cli.command {
+        None | Some(Command::Gui) => run_gui_flow(),
+        Some(Command::ListFileTypes) => list_file_types(),
+        Some(Command::Run(args)) => {
+            let file_type_groups = get_filetypes();
+            let presets = get_presets();
+            let built = match build_run_request(args, &file_type_groups, &presets) {
+                Ok(built) => built,
+                Err(error) => {
+                    eprintln!("❌ ERROR: {error}");
+                    std::process::exit(1);
+                }
+            };
+
+            let open_after = built.request.open_after;
+            let extensions_used = built.extensions_used.clone();
+            let summary = match generate_tag_output(built.request) {
+                Ok(summary) => summary,
+                Err(e) => {
+                    eprintln!("❌ ERROR: Could not generate tag output: {}", e);
+                    std::process::exit(1);
+                }
+            };
+
+            if open_after {
+                open_output_file(&summary);
+            }
+
+            print_cli_summary(&summary, &extensions_used);
+            std::process::exit(0);
+        }
+    }
+}
+
+fn run_gui_flow() {
     let initial_file_type_groups = get_filetypes();
     let cursor_position = get_cursor_position();
 
@@ -154,16 +152,36 @@ fn main() {
             .show();
 
         if result == MessageDialogResult::Yes {
-            if let Err(e) = std::process::Command::new(OPEN_COMMAND)
-                .arg(&summary.output_path)
-                .spawn()
-            {
-                eprintln!("❌ ERROR: Failed to open output file: {}", e);
-            }
+            open_output_file(&summary);
         }
     }
 
     std::process::exit(0);
+}
+
+fn list_file_types() {
+    for group in get_filetypes() {
+        println!("{}: {}", group.name, group.extensions.join(", "));
+    }
+}
+
+fn print_cli_summary(summary: &GenerationSummary, extensions_used: &[String]) {
+    println!("✅ Generation complete.");
+    println!("Output path: {}", summary.output_path.display());
+    println!("Files included: {}", summary.files_written);
+    println!("Files skipped: {}", summary.files_skipped);
+    println!("Non-UTF8 files skipped: {}", summary.skipped_non_utf8_files);
+    println!("Recursive: {}", summary.recursive);
+    println!("Extensions used: {}", extensions_used.join(", "));
+}
+
+fn open_output_file(summary: &GenerationSummary) {
+    if let Err(e) = std::process::Command::new(OPEN_COMMAND)
+        .arg(&summary.output_path)
+        .spawn()
+    {
+        eprintln!("❌ ERROR: Failed to open output file: {}", e);
+    }
 }
 
 /// Launches the graphical user interface and returns user selections for file processing.
