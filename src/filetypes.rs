@@ -10,6 +10,30 @@ pub struct FileTypeGroup {
     pub extensions: Vec<String>,
 }
 
+/// Finds a file type group by name using case-insensitive exact matching.
+///
+/// This helper intentionally does not perform fuzzy or partial matching so CLI
+/// callers can resolve explicit presets without surprising ambiguity.
+pub fn find_filetype_group<'a>(
+    groups: &'a [FileTypeGroup],
+    name: &str,
+) -> Option<&'a FileTypeGroup> {
+    groups
+        .iter()
+        .find(|group| group.name.eq_ignore_ascii_case(name))
+}
+
+/// Formats available file type group names for user-facing error messages.
+///
+/// Each group name is rendered on its own line as `- Name`.
+pub fn format_available_filetype_groups(groups: &[FileTypeGroup]) -> String {
+    groups
+        .iter()
+        .map(|group| format!("- {}", group.name))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Loads file type groups from `filetypes.json` or initializes with a default set if the file is missing.
 ///
 /// # Purpose
@@ -139,4 +163,69 @@ pub fn get_filetypes() -> Vec<FileTypeGroup> {
 pub fn save_filetypes(groups: &[FileTypeGroup]) {
     let data = serde_json::to_string_pretty(groups).unwrap_or_default();
     let _ = fs::write(FILETYPES_FILE, data);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{find_filetype_group, format_available_filetype_groups, FileTypeGroup};
+
+    fn group(name: &str) -> FileTypeGroup {
+        FileTypeGroup {
+            name: name.to_string(),
+            extensions: vec![name.to_lowercase()],
+        }
+    }
+
+    #[test]
+    fn find_filetype_group_matches_exact_name_case_insensitively() {
+        let groups = vec![group("Rust")];
+
+        assert_eq!(
+            find_filetype_group(&groups, "Rust").map(|g| g.name.as_str()),
+            Some("Rust")
+        );
+        assert_eq!(
+            find_filetype_group(&groups, "rust").map(|g| g.name.as_str()),
+            Some("Rust")
+        );
+        assert_eq!(
+            find_filetype_group(&groups, "RUST").map(|g| g.name.as_str()),
+            Some("Rust")
+        );
+    }
+
+    #[test]
+    fn find_filetype_group_returns_none_for_unknown_name() {
+        let groups = vec![group("Rust")];
+
+        assert!(find_filetype_group(&groups, "Go").is_none());
+    }
+
+    #[test]
+    fn find_filetype_group_does_not_match_partial_names() {
+        let groups = vec![group("Rust")];
+
+        assert!(find_filetype_group(&groups, "Ru").is_none());
+    }
+
+    #[test]
+    fn find_filetype_group_does_not_select_prefix_group() {
+        let groups = vec![group("Ruby"), group("Rust")];
+
+        assert_eq!(
+            find_filetype_group(&groups, "Rust").map(|g| g.name.as_str()),
+            Some("Rust")
+        );
+        assert!(find_filetype_group(&groups, "Ru").is_none());
+    }
+
+    #[test]
+    fn format_available_filetype_groups_lists_each_name_on_own_line() {
+        let groups = vec![group("Rust"), group("JSON"), group("Lua")];
+
+        assert_eq!(
+            format_available_filetype_groups(&groups),
+            "- Rust\n- JSON\n- Lua"
+        );
+    }
 }
