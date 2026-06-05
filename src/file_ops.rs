@@ -391,106 +391,111 @@ mod tests {
         vec!["target".to_string(), ".git".to_string()]
     }
 
+    fn project_fixture() -> std::io::Result<(tempfile::TempDir, std::path::PathBuf)> {
+        let temp = tempdir()?;
+        let project = temp.path().join("project");
+        fs::create_dir_all(&project)?;
+        Ok((temp, project))
+    }
+
     fn tag_for(relative_path: impl AsRef<Path>) -> String {
         relative_path.as_ref().to_string_lossy().into_owned()
     }
 
     #[test]
-    fn custom_output_path_creates_requested_file() -> std::io::Result<()> {
-        let temp = tempdir()?;
-        let root = temp.path();
-        fs::write(root.join("main.rs"), "fn main() {}")?;
-        let output_path = root.join("custom_output.txt");
+    fn custom_output_path_creates_requested_file_without_tags_output_txt() -> std::io::Result<()> {
+        let (temp, project) = project_fixture()?;
+        fs::create_dir_all(project.join("src"))?;
+        fs::write(project.join("src").join("main.rs"), "fn main() {}")?;
+        let output_path = temp.path().join("project_context.txt");
 
-        let summary =
-            write_folder_tags(root, &valid_exts(), false, &ignored_folders(), &output_path)?;
+        let summary = write_folder_tags(&project, &valid_exts(), true, &[], &output_path)?;
 
         assert!(output_path.exists());
+        assert!(!temp.path().join("tags_output.txt").exists());
+        assert!(!project.join("tags_output.txt").exists());
         assert_eq!(summary.files_written, 1);
         let output = fs::read_to_string(output_path)?;
-        assert!(output.contains("<main.rs>"));
+        let main_tag = tag_for(Path::new("src").join("main.rs"));
+        assert!(output.contains(&format!("<{main_tag}>")));
         assert!(output.contains("fn main() {}"));
 
         Ok(())
     }
 
     #[test]
-    fn tags_output_txt_is_not_created_for_different_output_path() -> std::io::Result<()> {
-        let temp = tempdir()?;
-        let root = temp.path();
-        fs::write(root.join("main.rs"), "fn main() {}")?;
-        let output_path = root.join("requested_output.txt");
+    fn recursive_search_includes_all_nested_matching_files() -> std::io::Result<()> {
+        let (temp, project) = project_fixture()?;
+        fs::create_dir_all(project.join("src"))?;
+        fs::write(project.join("src").join("main.rs"), "fn main() {}")?;
+        fs::write(project.join("src").join("lib.rs"), "pub fn lib() {}")?;
+        let output_path = temp.path().join("recursive_output.txt");
 
-        write_folder_tags(root, &valid_exts(), false, &ignored_folders(), &output_path)?;
+        let summary = write_folder_tags(&project, &valid_exts(), true, &[], &output_path)?;
 
-        assert!(output_path.exists());
-        assert!(!root.join("tags_output.txt").exists());
-
-        Ok(())
-    }
-
-    #[test]
-    fn recursive_search_includes_nested_matching_files() -> std::io::Result<()> {
-        let temp = tempdir()?;
-        let root = temp.path();
-        fs::create_dir(root.join("nested"))?;
-        fs::write(root.join("nested").join("lib.rs"), "pub fn nested() {}")?;
-        let output_path = root.join("recursive_output.txt");
-
-        let summary =
-            write_folder_tags(root, &valid_exts(), true, &ignored_folders(), &output_path)?;
-
-        assert_eq!(summary.files_written, 1);
+        assert_eq!(summary.files_written, 2);
         let output = fs::read_to_string(output_path)?;
-        let nested_tag = tag_for(Path::new("nested").join("lib.rs"));
-        assert!(output.contains(&format!("<{nested_tag}>")));
-        assert!(output.contains("pub fn nested() {}"));
+        let main_tag = tag_for(Path::new("src").join("main.rs"));
+        let lib_tag = tag_for(Path::new("src").join("lib.rs"));
+        assert!(output.contains(&format!("<{main_tag}>")));
+        assert!(output.contains(&format!("<{lib_tag}>")));
+        assert!(output.contains("fn main() {}"));
+        assert!(output.contains("pub fn lib() {}"));
 
         Ok(())
     }
 
     #[test]
-    fn non_recursive_search_excludes_nested_matching_files() -> std::io::Result<()> {
-        let temp = tempdir()?;
-        let root = temp.path();
-        fs::write(root.join("main.rs"), "fn main() {}")?;
-        fs::create_dir(root.join("nested"))?;
-        fs::write(root.join("nested").join("lib.rs"), "pub fn nested() {}")?;
-        let output_path = root.join("non_recursive_output.txt");
+    fn non_recursive_search_includes_only_top_level_matching_files() -> std::io::Result<()> {
+        let (temp, project) = project_fixture()?;
+        fs::write(project.join("main.rs"), "fn main() {}")?;
+        fs::create_dir_all(project.join("src"))?;
+        fs::write(project.join("src").join("lib.rs"), "pub fn lib() {}")?;
+        let output_path = temp.path().join("non_recursive_output.txt");
 
-        let summary =
-            write_folder_tags(root, &valid_exts(), false, &ignored_folders(), &output_path)?;
+        let summary = write_folder_tags(&project, &valid_exts(), false, &[], &output_path)?;
 
         assert_eq!(summary.files_written, 1);
         let output = fs::read_to_string(output_path)?;
         assert!(output.contains("<main.rs>"));
-        assert!(!output.contains("pub fn nested() {}"));
+        assert!(output.contains("fn main() {}"));
+        assert!(!output.contains("pub fn lib() {}"));
+        assert!(!output.contains(&tag_for(Path::new("src").join("lib.rs"))));
 
         Ok(())
     }
 
     #[test]
     fn ignored_folders_are_skipped_during_recursive_search() -> std::io::Result<()> {
-        let temp = tempdir()?;
-        let root = temp.path();
-        fs::write(root.join("main.rs"), "fn main() {}")?;
-        fs::create_dir(root.join("target"))?;
+        let (temp, project) = project_fixture()?;
+        fs::create_dir_all(project.join("src"))?;
+        fs::write(project.join("src").join("main.rs"), "fn main() {}")?;
+        fs::create_dir_all(project.join("target"))?;
         fs::write(
-            root.join("target").join("generated.rs"),
-            "pub fn target() {}",
+            project.join("target").join("generated.rs"),
+            "pub fn generated() {}",
         )?;
-        fs::create_dir(root.join(".git"))?;
-        fs::write(root.join(".git").join("ignored.rs"), "pub fn git() {}")?;
-        let output_path = root.join("ignored_output.txt");
+        fs::create_dir_all(project.join(".git"))?;
+        fs::write(project.join(".git").join("config"), "[core]")?;
+        let output_path = temp.path().join("ignored_output.txt");
 
-        let summary =
-            write_folder_tags(root, &valid_exts(), true, &ignored_folders(), &output_path)?;
+        let summary = write_folder_tags(
+            &project,
+            &valid_exts(),
+            true,
+            &ignored_folders(),
+            &output_path,
+        )?;
 
         assert_eq!(summary.files_written, 1);
         let output = fs::read_to_string(output_path)?;
+        let main_tag = tag_for(Path::new("src").join("main.rs"));
+        assert!(output.contains(&format!("<{main_tag}>")));
         assert!(output.contains("fn main() {}"));
-        assert!(!output.contains("pub fn target() {}"));
-        assert!(!output.contains("pub fn git() {}"));
+        assert!(!output.contains("pub fn generated() {}"));
+        assert!(!output.contains("target"));
+        assert!(!output.contains(".git"));
+        assert!(!output.contains("[core]"));
 
         Ok(())
     }
