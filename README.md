@@ -67,8 +67,16 @@ cargo build --release
 ## 🚀 Usage
 
 ### Launch GUI  
+Running the binary without arguments launches the GUI.
+
 ```sh
 ./target/release/code-file-wrapper
+```
+
+You can also launch the GUI explicitly from an installed binary:
+
+```sh
+code-file-wrapper gui
 ```
 
 ### GUI Actions  
@@ -76,12 +84,12 @@ cargo build --release
 - Choose or manage filetype groups (Rust, JSON, Web, etc.)  
 - Enable recursion and ignore folders if needed  
 - Add manual instructions or select a preset  
-- Output is written to `tags_output.txt` by default, or to the custom path you enter  
+- The output field defaults to `tags_output.txt`; edit it to write to any non-directory output path
 - Optionally copies output to your clipboard  
 
 ### CLI Examples
 
-The CLI uses the same shared generation engine as the GUI, so tagged output, recursive traversal, ignored folders, additional commands, presets, and clipboard copy behavior are generated consistently whether you run interactively or from a script.
+The CLI uses the same shared generation engine as the GUI, so tagged output, recursive traversal, ignored folders, additional commands, presets, output-path handling, and clipboard copy behavior are generated consistently whether you run interactively or from a script.
 
 Run without a subcommand to launch the GUI:
 
@@ -101,13 +109,13 @@ List configured file type groups from `filetypes.json`:
 code-file-wrapper list-file-types
 ```
 
-Generate Rust context from the current directory recursively. Without `--output`, the CLI writes to the default `tags_output.txt`:
+Generate Rust context from the current directory recursively. Without `--output`, the CLI writes to `tags_output.txt` in the current working directory:
 
 ```sh
 code-file-wrapper run --dir . --file-type Rust --recursive
 ```
 
-Use a custom output filename for repeatable no-GUI workflows:
+Use `--output <path>` to override the CLI default output path for repeatable no-GUI workflows:
 
 ```sh
 code-file-wrapper run --dir . --file-type Rust --recursive --output rust_context.txt
@@ -124,6 +132,22 @@ Copy the generated output to the clipboard after writing the output file:
 ```sh
 code-file-wrapper run --dir . --file-type Rust --recursive --copy
 ```
+
+### Default Output Behavior
+
+- No arguments launches the GUI: `code-file-wrapper`.
+- The GUI output field starts as `tags_output.txt`, and you can replace it with a custom file path before clicking **OK**.
+- The CLI `run` subcommand defaults `--output` to `tags_output.txt`.
+- Both GUI and CLI reject an output path that already points to a directory; use a filename instead.
+
+### CLI Error Behavior
+
+The CLI validates arguments before or during generation and exits non-zero on errors. Common cases are:
+
+- **Unknown file type group:** `--file-type <name>` must match a group from `filetypes.json`; run `code-file-wrapper list-file-types` to see valid names.
+- **Missing extension selection:** `code-file-wrapper run --dir .` is invalid because `run` needs either `--file-type <group>` or at least one `--ext <extension>`.
+- **Invalid directory:** `--dir <path>` must exist and be a directory.
+- **Output path is a directory:** `--output <path>` must name a file path, not an existing folder.
 
 Profiles are optional convenience helpers for saving command arguments, but they are not required for repeatability. A checked-in shell, PowerShell, or batch script that calls `code-file-wrapper run` with explicit arguments is fully repeatable without using profiles.
 
@@ -189,23 +213,30 @@ The tradeoff is that launching the GUI build directly on Windows may show a cons
 
 ## 📜 How It Works
 
+### Architecture
+
+The application has one shared generation path for both interactive and scripted use:
+
+- The GUI gathers selections, then `main.rs` builds a `TagGenerationRequest`.
+- The CLI parses `code-file-wrapper run ...`, then `cli.rs` builds a `TagGenerationRequest`.
+- Both flows call `generate_tag_output` in `src/generation.rs`.
+- `src/file_ops.rs` only scans directories and writes/appends files; it does not parse CLI arguments, run GUI dialogs, or own output-path defaults.
+
 ```mermaid
 graph TD;
-    A[Start] --> B[Open GUI]
-    B --> C[Select Directory & File Type Group]
-    C --> D[Enable Recursive Search?]
-    D -->|Yes| E[Setup Ignore Folder List]
-    D -->|No| F[Proceed]
-    E --> G[Scan Files]
-    F --> G
-    G --> H[Wrap Files with <RelativePath> Tags]
-    H --> I[Write to selected output file]
-    I --> J[Append Presets + Additional Commands]
-    J --> K{Copy to Clipboard?}
-    K -->|Yes| L[Copy Output]
-    K -->|No| M[Prompt to Open File]
-    L --> N[Done]
-    M --> N
+    A[Start] --> B{Entry point}
+    B -->|No args or gui| C[GUI selections]
+    B -->|run| D[CLI arguments]
+    C --> E[Build TagGenerationRequest]
+    D --> E
+    E --> F[generate_tag_output]
+    F --> G[file_ops scans selected files]
+    G --> H[file_ops writes selected output file]
+    H --> I[Append Presets + Additional Commands]
+    I --> J{Copy to Clipboard?}
+    J -->|Yes| K[Copy Output]
+    J -->|No| L[Return Summary]
+    K --> L
 ```
 
 ---

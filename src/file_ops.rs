@@ -1,19 +1,20 @@
 //! # File Operations Module
 //!
-//! This module is responsible for processing files in a directory by reading their contents,
-//! filtering by file extension, and writing them into a caller-selected tagged output file.
+//! Provides low-level filesystem helpers for scanning directories and writing tagged output files.
+//! Higher-level GUI/CLI orchestration lives in `generation`, `gui`, `cli`, and `main`; this module
+//! intentionally does not decide defaults, parse arguments, show dialogs, or choose generation paths.
 //!
 //! # Features
 //! - Recursively or non-recursively scan directories.
 //! - Filter files by allowed extensions.
 //! - Skip hidden or user-specified folders.
 //! - Wrap file contents in XML-style tags based on relative path.
-//! - Append instructional or command-based sections at the end of the output.
+//! - Append instructional or command-based sections to whichever output file the caller supplies.
 //!
 //! # Key Functions
-//! - [`write_folder_tags`]: Top-level entry point for generating tagged file output.
+//! - [`write_folder_tags`]: Creates/overwrites a caller-selected tagged output file.
 //! - [`write_folder_tags_recursive`]: Internal recursive helper for deep directory traversal.
-//! - [`append_additional_commands`]: Appends extra user-defined command blocks.
+//! - [`append_additional_commands`]: Appends extra user-defined command blocks to a caller-selected file.
 //! - [`is_human_readable`]: Checks if a file has an allowed extension.
 //!
 //! # Output Behavior
@@ -96,7 +97,7 @@ pub struct WriteFolderTagsSummary {
 /// let dir = Path::new("src");
 /// let exts = vec!["rs".to_string(), "toml".to_string()];
 /// let ignored = vec!["target".to_string(), ".git".to_string()];
-/// let output_path = Path::new("tags_output.txt");
+/// let output_path = Path::new("project_context.txt");
 /// write_folder_tags(dir, &exts, true, &ignored, output_path)?;
 /// ```
 pub fn write_folder_tags(
@@ -232,7 +233,7 @@ fn write_tagged_file(
 /// instructions, prompts, or commands that should be interpreted after the code sections.
 ///
 /// # Parameters
-/// - `file_path`: Path to the file to append to (typically `"tags_output.txt"`).
+/// - `file_path`: Path to the caller-selected output file to append to.
 /// - `additional_commands`: Multiline string of user-defined commands or instructions to include.
 ///
 /// # Behavior
@@ -265,7 +266,7 @@ fn write_tagged_file(
 ///
 /// # Example
 /// ```rust
-/// append_additional_commands("tags_output.txt", "TODO: Review all unwrap() usages.")?;
+/// append_additional_commands("project_context.txt", "TODO: Review all unwrap() usages.")?;
 /// ```
 ///
 /// # See Also
@@ -330,7 +331,7 @@ pub fn append_additional_commands(
 /// # Example
 /// ```rust
 /// let root = Path::new("src");
-/// let mut output = File::create("tags_output.txt")?;
+/// let mut output = File::create("project_context.txt")?;
 /// let ignored = vec!["target".to_string(), ".git".to_string()];
 /// let valid_exts = vec!["rs".to_string()];
 /// let mut summary = WriteFolderTagsSummary::default();

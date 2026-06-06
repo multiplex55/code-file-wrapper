@@ -12,7 +12,7 @@
 //!
 //! # Use Cases
 //! - GUI positioning based on current cursor location.
-//! - Copying output (`tags_output.txt`) to the clipboard for easy pasting into external tools (e.g., chatbots, editors).
+//! - Copying the selected output file to the clipboard for easy pasting into external tools (e.g., chatbots, editors).
 //!
 //! # Notes
 //! - Functions in this module are designed to fail gracefully and never panic.
@@ -59,8 +59,8 @@ use std::io;
 ///
 /// # Example
 /// ```rust
-/// copy_to_clipboard("tags_output.txt")?;
-/// println!("Copied tags_output.txt to clipboard.");
+/// copy_to_clipboard("project_context.txt")?;
+/// println!("Copied project_context.txt to clipboard.");
 /// ```
 #[cfg(windows)]
 pub fn copy_to_clipboard(file_path: &str) -> io::Result<()> {

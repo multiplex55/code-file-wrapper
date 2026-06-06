@@ -1,9 +1,12 @@
 //! # GUI Module
 //!
-//! Provides the graphical interface for selecting directories, file types, and preset commands.
+//! Provides the graphical interface for selecting directories, file types, output paths, and preset commands.
+//! The GUI gathers selections only; `main.rs` converts them into a `TagGenerationRequest` and calls
+//! `generate_tag_output` so the GUI does not maintain a separate generation implementation.
 //!
 //! # Purpose
 //! - Allows users to configure how the application processes files.
+//! - Starts with `tags_output.txt` as the default output path while allowing the user to enter a custom path.
 //! - Enables selection of presets, additional instructions, and clipboard behavior.
 //! - Offers management tools to create, edit, and delete command presets.
 //!

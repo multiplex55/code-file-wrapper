@@ -1,25 +1,20 @@
 //! # Main Entry Point
 //!
-//! Coordinates program execution, launching the GUI and processing user-selected files.
+//! Coordinates application startup and routes execution to either the GUI flow or a CLI
+//! subcommand. Running with no subcommand launches the GUI; `run` and profile subcommands
+//! build a CLI-driven request instead.
 //!
 //! # Responsibilities
-//! - Starts the GUI and gathers user input.
-//! - Validates directory and mode selections.
-//! - Initiates file reading, filtering, and output generation.
-//! - Optionally copies the final result to the clipboard or opens it in Notepad.
+//! - Parses top-level CLI commands and dispatches GUI, generation, profile, and listing flows.
+//! - Supplies the GUI with its default output path (`tags_output.txt`) while allowing users to edit it.
+//! - Converts GUI selections into a [`TagGenerationRequest`].
+//! - Passes every GUI and CLI generation request to [`generate_tag_output`] so output creation stays centralized.
+//! - Handles presentation-only behavior such as CLI summaries, GUI dialogs, and optional file opening.
 //!
-//! # Key Functions
-//! - [`main`]: The primary entry point. Launches the app, orchestrates all major steps.
-//! - [`mode_selection_gui`]: Wrapper that runs the GUI and returns user selections.
-//!
-//! # Dependencies
-//! - Relies on `generation` for tag generation orchestration.
-//! - Relies on `gui` for user input.
-//! - Relies on `utils` for clipboard and cursor behavior.
-//! - Relies on `presets` for saved preset data.
-//!
-//! # Output
-//! - Generates or updates the selected output file.
+//! # Architecture Notes
+//! - GUI and CLI code should not duplicate tagged-output generation logic.
+//! - `main.rs` orchestrates entry points, then delegates filesystem scanning/writing through `generation`.
+//! - The selected output path may be the default `tags_output.txt` or any caller-provided file path.
 
 mod cli;
 mod file_ops;

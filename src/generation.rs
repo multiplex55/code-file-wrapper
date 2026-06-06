@@ -1,8 +1,16 @@
 //! Shared output generation orchestration.
 //!
-//! This module contains the non-GUI generation flow used to build tagged output files,
-//! append preset/manual command text, and optionally copy the final output to the clipboard.
-//! Callers remain responsible for presenting dialogs or opening generated files.
+//! This module is the single generation path used by both GUI and CLI entry points. Each
+//! caller translates user input into a [`TagGenerationRequest`] and then calls
+//! [`generate_tag_output`] to scan files, write tagged output, append preset/manual text,
+//! and optionally copy the result to the clipboard.
+//!
+//! # Architecture Notes
+//! - GUI and CLI flows should build requests instead of generating output independently.
+//! - [`generate_tag_output`] validates generation-level inputs such as the root directory and output path.
+//! - `file_ops.rs` remains limited to scanning and writing files; it does not own defaults or UI/CLI behavior.
+//! - Output paths are caller-selected: both current entry points default to `tags_output.txt`, but both can override it.
+//! - Callers remain responsible for presenting dialogs, printing summaries, or opening generated files.
 
 use crate::file_ops::{append_additional_commands, write_folder_tags};
 use crate::utils::copy_to_clipboard;
