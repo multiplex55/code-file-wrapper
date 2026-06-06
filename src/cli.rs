@@ -1,3 +1,24 @@
+//! # CLI Module
+//!
+//! Defines command-line arguments and converts non-interactive runs into [`TagGenerationRequest`] values.
+//! Running the binary with no subcommand is handled by `main.rs` and launches the GUI; the `run`
+//! subcommand uses this module to validate arguments before calling the shared generation path.
+//!
+//! # Defaults and Overrides
+//! - `run` defaults `--output` to `tags_output.txt`.
+//! - Supplying `--output <path>` overrides the default output file.
+//! - Callers must provide either `--file-type <group>` or one or more `--ext <extension>` values.
+//!
+//! # Error Behavior
+//! - Unknown file type groups return a message with the available groups.
+//! - Missing extension selection returns a message asking for `--file-type` or `--ext`.
+//! - Invalid directories are rejected before generation.
+//! - Output paths that already point to directories are rejected by `generate_tag_output`.
+//!
+//! # Architecture Notes
+//! The CLI does not write tagged output directly. It builds a request, then `main.rs` passes that
+//! request to `generate_tag_output`, matching the GUI architecture and avoiding duplicate generation paths.
+
 use crate::filetypes::{find_filetype_group, format_available_filetype_groups, FileTypeGroup};
 use crate::generation::TagGenerationRequest;
 use crate::presets::PresetCommand;
